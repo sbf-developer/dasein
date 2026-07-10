@@ -63,6 +63,11 @@ export const api = {
   connections: {
     list: () => request<Connection[]>("/connections"),
     graph: () => request<GraphData>("/connections/graph"),
+    saveLayout: (positions: { nodeKey: string; x: number; y: number }[]) =>
+      request<{ ok: boolean }>("/connections/layout", {
+        method: "PUT",
+        body: JSON.stringify({ positions }),
+      }),
     create: (data: {
       sourceType: Connection["sourceType"];
       sourceId: string;
@@ -201,6 +206,7 @@ export type GraphEdge = {
 export type GraphData = {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  positions?: Record<string, { x: number; y: number }>;
 };
 
 export type AiThread = {

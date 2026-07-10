@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -7,6 +7,7 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
+  ConnectionMode,
   type Connection,
   type Node,
   type Edge,
@@ -14,7 +15,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { api, type GraphData } from "@/lib/api";
+import { GraphNode } from "@/components/GraphNode";
 import { Button } from "@/components/ui/Button";
+
+const nodeTypes = { graph: GraphNode };
 
 const typeColors: Record<string, string> = {
   DOCUMENT: "#0071e3",
@@ -24,22 +28,22 @@ const typeColors: Record<string, string> = {
   FILE: "#5856d6",
 };
 
+function defaultPosition(index: number) {
+  return { x: (index % 4) * 240, y: Math.floor(index / 4) * 140 };
+}
+
 function graphToFlow(data: GraphData): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = data.nodes.map((n, i) => ({
-    id: n.id,
-    data: { label: n.label, type: n.type },
-    position: { x: (i % 4) * 220, y: Math.floor(i / 4) * 120 },
-    style: {
-      background: "#fff",
-      border: `1.5px solid ${typeColors[n.type] ?? "#ccc"}`,
-      borderRadius: 10,
-      padding: "8px 14px",
-      fontSize: 13,
-      fontWeight: 500,
-      minWidth: 120,
-      textAlign: "center" as const,
-    },
-  }));
+  const nodes: Node[] = data.nodes.map((n, i) => {
+    const saved = data.positions?.[n.id];
+    return {
+      id: n.id,
+      type: "graph",
+      data: { label: n.label, type: n.type },
+      position: saved ?? defaultPosition(i),
+      draggable: true,
+      connectable: true,
+    };
+  });
 
   const edges: Edge[] = data.edges.map((e) => ({
     id: e.id,
@@ -47,8 +51,9 @@ function graphToFlow(data: GraphData): { nodes: Node[]; edges: Edge[] } {
     target: e.target,
     label: e.label ?? undefined,
     markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-    style: { stroke: "#c8c8c8", strokeWidth: 1.5 },
+    style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
     labelStyle: { fontSize: 11, fill: "#9a9a9a" },
+    deletable: true,
   }));
 
   return { nodes, edges };
@@ -58,6 +63,21 @@ export function GraphPage() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
+  const fitOnce = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const savePositions = useCallback((currentNodes: Node[]) => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      api.connections.saveLayout(
+        currentNodes.map((n) => ({
+          nodeKey: n.id,
+          x: n.position.x,
+          y: n.position.y,
+        }))
+      );
+    }, 500);
+  }, []);
 
   const load = useCallback(async () => {
     const data = await api.connections.graph();
@@ -65,15 +85,25 @@ export function GraphPage() {
     setNodes(flow.nodes);
     setEdges(flow.edges);
     setLoading(false);
+    fitOnce.current = false;
   }, [setNodes, setEdges]);
 
   useEffect(() => {
     load();
+    return () => clearTimeout(saveTimer.current);
   }, [load]);
+
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+
+  const onNodeDragStop = useCallback(() => {
+    savePositions(nodesRef.current);
+  }, [savePositions]);
 
   const onConnect = useCallback(
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      if (connection.source === connection.target) return;
 
       const [sourceType, sourceId] = connection.source.split(":") as [
         "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE",
@@ -97,7 +127,8 @@ export function GraphPage() {
               ...connection,
               id: conn.id,
               markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-              style: { stroke: "#c8c8c8", strokeWidth: 1.5 },
+              style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
+              deletable: true,
             },
             eds
           )
@@ -108,6 +139,10 @@ export function GraphPage() {
     },
     [setEdges]
   );
+
+  const onEdgesDelete = useCallback(async (deleted: Edge[]) => {
+    await Promise.all(deleted.map((e) => api.connections.delete(e.id)));
+  }, []);
 
   if (loading) {
     return (
@@ -123,7 +158,7 @@ export function GraphPage() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Knowledge Graph</h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            Drag between nodes to connect ideas. Blue = notes, green = goals, orange = actions, purple = calendar, indigo = files.
+            Drag nodes to arrange · drag from a dot to connect · select an edge and press Delete to remove
           </p>
         </div>
         <Button variant="secondary" onClick={load}>
@@ -140,10 +175,28 @@ export function GraphPage() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            fitView
+            onNodeDragStop={onNodeDragStop}
+            onEdgesDelete={onEdgesDelete}
+            connectionMode={ConnectionMode.Loose}
+            nodesDraggable
+            nodesConnectable
+            elementsSelectable
+            edgesReconnectable
+            onInit={(instance) => {
+              if (!fitOnce.current) {
+                instance.fitView({ padding: 0.15 });
+                fitOnce.current = true;
+              }
+            }}
+            defaultEdgeOptions={{
+              markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+              style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
+            }}
+            connectionLineStyle={{ stroke: "#0071e3", strokeWidth: 2 }}
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={20} size={1} color="#f0f0f0" />

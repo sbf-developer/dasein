@@ -23,6 +23,7 @@ model User {
   aiThreads     AiThread[]
   calendarEvents CalendarEvent[]
   fileUploads   FileUpload[]
+  graphLayouts  GraphLayout[]
 
   @@index([email])
 }
@@ -184,6 +185,20 @@ model FileUpload {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+model GraphLayout {
+  id        String   @id @default(cuid())
+  userId    String
+  nodeKey   String
+  x         Float
+  y         Float
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeKey])
   @@index([userId])
 }
 

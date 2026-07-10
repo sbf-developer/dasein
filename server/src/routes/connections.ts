@@ -26,7 +26,7 @@ connectionRoutes.get("/", async (c) => {
 connectionRoutes.get("/graph", async (c) => {
   const userId = c.get("userId");
 
-  const [documents, goals, actions, events, files, connections] = await Promise.all([
+  const [documents, goals, actions, events, files, connections, layouts] = await Promise.all([
     prisma.document.findMany({
       where: { userId },
       select: { id: true, title: true, type: true },
@@ -48,6 +48,7 @@ connectionRoutes.get("/graph", async (c) => {
       select: { id: true, filename: true, mimeType: true },
     }),
     prisma.connection.findMany({ where: { userId } }),
+    prisma.graphLayout.findMany({ where: { userId } }),
   ]);
 
   const nodes = [
@@ -90,7 +91,38 @@ connectionRoutes.get("/graph", async (c) => {
     label: c.label,
   }));
 
-  return c.json({ nodes, edges });
+  const positions = Object.fromEntries(
+    layouts.map((l) => [l.nodeKey, { x: l.x, y: l.y }])
+  );
+
+  return c.json({ nodes, edges, positions });
+});
+
+connectionRoutes.put("/layout", async (c) => {
+  const userId = c.get("userId");
+  const body = z
+    .object({
+      positions: z.array(
+        z.object({
+          nodeKey: z.string(),
+          x: z.number(),
+          y: z.number(),
+        })
+      ),
+    })
+    .parse(await c.req.json());
+
+  await Promise.all(
+    body.positions.map((p) =>
+      prisma.graphLayout.upsert({
+        where: { userId_nodeKey: { userId, nodeKey: p.nodeKey } },
+        create: { userId, nodeKey: p.nodeKey, x: p.x, y: p.y },
+        update: { x: p.x, y: p.y },
+      })
+    )
+  );
+
+  return c.json({ ok: true });
 });
 
 connectionRoutes.post("/", async (c) => {
