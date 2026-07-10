@@ -12,10 +12,28 @@ aiRoutes.use("*", requireAuth);
 
 aiRoutes.get("/threads", async (c) => {
   const userId = c.get("userId");
+  const q = c.req.query("q")?.trim();
+
   const threads = await prisma.aiThread.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { messages: { some: { content: { contains: q, mode: "insensitive" } } } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { updatedAt: "desc" },
-    include: { messages: { take: 1, orderBy: { createdAt: "desc" } } },
+    include: {
+      messages: {
+        take: 1,
+        orderBy: { createdAt: "desc" },
+        select: { content: true, role: true, createdAt: true },
+      },
+    },
   });
   return c.json(threads);
 });
@@ -94,4 +112,14 @@ aiRoutes.post("/chat", async (c) => {
   });
 
   return c.json({ threadId, userMessage: userMsg, message: assistantMsg });
+});
+
+aiRoutes.delete("/threads/:id", async (c) => {
+  const userId = c.get("userId");
+  const existing = await prisma.aiThread.findFirst({
+    where: { id: c.req.param("id"), userId },
+  });
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  await prisma.aiThread.delete({ where: { id: existing.id } });
+  return c.json({ ok: true });
 });

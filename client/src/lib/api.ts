@@ -107,10 +107,13 @@ export const api = {
       request<{ ok: boolean }>(`/files/${id}`, { method: "DELETE" }),
   },
   ai: {
-    threads: () => request<AiThread[]>("/ai/threads"),
-    thread: (id: string) => request<AiThread & { messages: AiMessage[] }>(`/ai/threads/${id}`),
+    threads: (q?: string) =>
+      request<AiThreadListItem[]>(`/ai/threads${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+    thread: (id: string) => request<AiThreadDetail>(`/ai/threads/${id}`),
     createThread: (title?: string) =>
-      request<AiThread>("/ai/threads", { method: "POST", body: JSON.stringify({ title }) }),
+      request<AiThreadListItem>("/ai/threads", { method: "POST", body: JSON.stringify({ title }) }),
+    deleteThread: (id: string) =>
+      request<{ ok: boolean }>(`/ai/threads/${id}`, { method: "DELETE" }),
     chat: (message: string, threadId?: string) =>
       request<{ threadId: string; userMessage: AiMessage; message: AiMessage }>("/ai/chat", {
         method: "POST",
@@ -209,11 +212,16 @@ export type GraphData = {
   positions?: Record<string, { x: number; y: number }>;
 };
 
-export type AiThread = {
+export type AiThreadListItem = {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
+  messages?: { content: string; role: "USER" | "ASSISTANT" | "SYSTEM"; createdAt: string }[];
+};
+
+export type AiThreadDetail = AiThreadListItem & {
+  messages: AiMessage[];
 };
 
 export type AiMessage = {
