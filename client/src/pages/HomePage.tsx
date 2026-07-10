@@ -1,22 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Target, CheckSquare, FileText, Sparkles } from "lucide-react";
-import { api, type Goal, type Action, type Document } from "@/lib/api";
+import { Target, CheckSquare, FileText, Sparkles, Calendar } from "lucide-react";
+import { api, type Goal, type Action, type Document, type CalendarEvent } from "@/lib/api";
+
+function formatEventDate(iso: string, allDay: boolean) {
+  const d = new Date(iso);
+  if (allDay) return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
 
 export function HomePage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [notes, setNotes] = useState<Document[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.goals.list(),
       api.actions.list(),
       api.documents.list(),
-    ]).then(([g, a, n]) => {
+      api.calendar.list({ upcoming: true }),
+    ]).then(([g, a, n, e]) => {
       setGoals(g.filter((x) => x.status === "ACTIVE").slice(0, 5));
       setActions(a.filter((x) => x.status !== "DONE").slice(0, 5));
       setNotes(n.slice(0, 5));
+      setEvents(e.slice(0, 5));
     });
   }, []);
 
@@ -28,6 +37,17 @@ export function HomePage() {
       </p>
 
       <div className="mt-8 grid gap-6">
+        <Section
+          title="Upcoming"
+          icon={<Calendar size={16} />}
+          link="/calendar"
+          empty="Nothing scheduled"
+          items={events.map((e) => ({
+            id: e.id,
+            title: e.title,
+            meta: formatEventDate(e.startAt, e.allDay),
+          }))}
+        />
         <Section
           title="Active goals"
           icon={<Target size={16} />}
@@ -70,7 +90,7 @@ export function HomePage() {
         <div>
           <p className="text-sm font-medium">Ask AI</p>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            Get help planning, connecting ideas, and deciding what to do next.
+            Context-aware help across your goals, calendar, notes, and uploaded documents.
           </p>
         </div>
       </Link>

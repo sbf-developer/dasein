@@ -9,6 +9,8 @@ import { NoteEditorPage } from "@/pages/NoteEditorPage";
 import { GoalsPage } from "@/pages/GoalsPage";
 import { ActionsPage } from "@/pages/ActionsPage";
 import { GraphPage } from "@/pages/GraphPage";
+import { CalendarPage } from "@/pages/CalendarPage";
+import { DocumentsPage } from "@/pages/DocumentsPage";
 import { AiPage } from "@/pages/AiPage";
 
 const queryClient = new QueryClient();
@@ -22,7 +24,9 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/notes" element={<NotesPage />} />
+              <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/notes/:id" element={<NoteEditorPage />} />
               <Route path="/goals" element={<GoalsPage />} />
               <Route path="/actions" element={<ActionsPage />} />

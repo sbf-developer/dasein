@@ -6,9 +6,9 @@ import { z } from "zod";
 type Variables = { userId: string };
 
 const connectionSchema = z.object({
-  sourceType: z.enum(["DOCUMENT", "GOAL", "ACTION"]),
+  sourceType: z.enum(["DOCUMENT", "GOAL", "ACTION", "CALENDAR_EVENT", "FILE"]),
   sourceId: z.string(),
-  targetType: z.enum(["DOCUMENT", "GOAL", "ACTION"]),
+  targetType: z.enum(["DOCUMENT", "GOAL", "ACTION", "CALENDAR_EVENT", "FILE"]),
   targetId: z.string(),
   label: z.string().optional(),
 });
@@ -26,7 +26,7 @@ connectionRoutes.get("/", async (c) => {
 connectionRoutes.get("/graph", async (c) => {
   const userId = c.get("userId");
 
-  const [documents, goals, actions, connections] = await Promise.all([
+  const [documents, goals, actions, events, files, connections] = await Promise.all([
     prisma.document.findMany({
       where: { userId },
       select: { id: true, title: true, type: true },
@@ -38,6 +38,14 @@ connectionRoutes.get("/graph", async (c) => {
     prisma.action.findMany({
       where: { userId },
       select: { id: true, title: true, status: true },
+    }),
+    prisma.calendarEvent.findMany({
+      where: { userId },
+      select: { id: true, title: true, startAt: true },
+    }),
+    prisma.fileUpload.findMany({
+      where: { userId },
+      select: { id: true, filename: true, mimeType: true },
     }),
     prisma.connection.findMany({ where: { userId } }),
   ]);
@@ -60,6 +68,18 @@ connectionRoutes.get("/graph", async (c) => {
       label: a.title,
       type: "ACTION" as const,
       subtype: a.status,
+    })),
+    ...events.map((e) => ({
+      id: `CALENDAR_EVENT:${e.id}`,
+      label: e.title,
+      type: "CALENDAR_EVENT" as const,
+      subtype: e.startAt.toISOString().slice(0, 10),
+    })),
+    ...files.map((f) => ({
+      id: `FILE:${f.id}`,
+      label: f.filename,
+      type: "FILE" as const,
+      subtype: f.mimeType,
     })),
   ];
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, FileText, Target, CheckSquare, X } from "lucide-react";
+import { Search, FileText, Target, CheckSquare, X, Calendar, FolderUp } from "lucide-react";
 import { api, type SearchResult } from "@/lib/api";
 
 export function SearchBar() {
@@ -49,6 +49,10 @@ export function SearchBar() {
         return <Target size={14} />;
       case "action":
         return <CheckSquare size={14} />;
+      case "event":
+        return <Calendar size={14} />;
+      case "file":
+        return <FolderUp size={14} />;
     }
   };
 
@@ -57,7 +61,9 @@ export function SearchBar() {
     setQuery("");
     if (r.type === "document") navigate(`/notes/${r.id}`);
     else if (r.type === "goal") navigate(`/goals`);
-    else navigate(`/actions`);
+    else if (r.type === "action") navigate(`/actions`);
+    else if (r.type === "event") navigate(`/calendar`);
+    else navigate(`/documents`);
   };
 
   return (
@@ -71,7 +77,7 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query && setOpen(true)}
-          placeholder="Search notes, goals, actions…"
+          placeholder="Search everything…"
           className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] py-2 pl-9 pr-8 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
         />
         {query && (

@@ -13,6 +13,8 @@ import { goalRoutes } from "./routes/goals.js";
 import { actionRoutes } from "./routes/actions.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { aiRoutes } from "./routes/ai.js";
+import { calendarRoutes } from "./routes/calendar.js";
+import { fileRoutes } from "./routes/files.js";
 import { searchRoutes } from "./routes/search.js";
 import { getEnv, isProduction } from "./lib/env.js";
 import { prisma } from "./lib/prisma.js";
@@ -58,6 +60,8 @@ app.route("/api/goals", goalRoutes);
 app.route("/api/actions", actionRoutes);
 app.route("/api/connections", connectionRoutes);
 app.route("/api/ai", aiRoutes);
+app.route("/api/calendar", calendarRoutes);
+app.route("/api/files", fileRoutes);
 app.route("/api/search", searchRoutes);
 
 app.onError((err, c) => {

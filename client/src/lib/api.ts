@@ -1,13 +1,13 @@
 const API_BASE = "/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const isFormData = options?.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers: isFormData
+      ? options?.headers
+      : { "Content-Type": "application/json", ...options?.headers },
   });
 
   if (!res.ok) {
@@ -74,6 +74,33 @@ export const api = {
     delete: (id: string) =>
       request<{ ok: boolean }>(`/connections/${id}`, { method: "DELETE" }),
   },
+  calendar: {
+    list: (params?: { from?: string; to?: string; upcoming?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.from) q.set("from", params.from);
+      if (params?.to) q.set("to", params.to);
+      if (params?.upcoming) q.set("upcoming", "true");
+      const qs = q.toString();
+      return request<CalendarEvent[]>(`/calendar${qs ? `?${qs}` : ""}`);
+    },
+    create: (data: Partial<CalendarEvent>) =>
+      request<CalendarEvent>("/calendar", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<CalendarEvent>) =>
+      request<CalendarEvent>(`/calendar/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      request<{ ok: boolean }>(`/calendar/${id}`, { method: "DELETE" }),
+  },
+  files: {
+    list: () => request<FileUpload[]>("/files"),
+    get: (id: string) => request<FileUpload>(`/files/${id}`),
+    upload: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<FileUpload>("/files", { method: "POST", body: form });
+    },
+    delete: (id: string) =>
+      request<{ ok: boolean }>(`/files/${id}`, { method: "DELETE" }),
+  },
   ai: {
     threads: () => request<AiThread[]>("/ai/threads"),
     thread: (id: string) => request<AiThread & { messages: AiMessage[] }>(`/ai/threads/${id}`),
@@ -128,17 +155,39 @@ export type Action = {
 
 export type Connection = {
   id: string;
-  sourceType: "DOCUMENT" | "GOAL" | "ACTION";
+  sourceType: "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE";
   sourceId: string;
-  targetType: "DOCUMENT" | "GOAL" | "ACTION";
+  targetType: "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE";
   targetId: string;
   label: string | null;
+};
+
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  description: string;
+  startAt: string;
+  endAt: string | null;
+  allDay: boolean;
+  color: string | null;
+  goalId: string | null;
+  actionId: string | null;
+};
+
+export type FileUpload = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  extractedText: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GraphNode = {
   id: string;
   label: string;
-  type: "DOCUMENT" | "GOAL" | "ACTION";
+  type: "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE";
   subtype: string;
 };
 
@@ -170,7 +219,7 @@ export type AiMessage = {
 
 export type SearchResult = {
   id: string;
-  type: "document" | "goal" | "action";
+  type: "document" | "goal" | "action" | "event" | "file";
   title: string;
   subtitle: string;
   updatedAt: string;

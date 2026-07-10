@@ -7,12 +7,16 @@ import {
   GitBranch,
   Sparkles,
   LogOut,
+  Calendar,
+  FolderUp,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const nav = [
   { to: "/", icon: LayoutDashboard, label: "Home" },
+  { to: "/calendar", icon: Calendar, label: "Calendar" },
   { to: "/notes", icon: FileText, label: "Notes" },
+  { to: "/documents", icon: FolderUp, label: "Documents" },
   { to: "/goals", icon: Target, label: "Goals" },
   { to: "/actions", icon: CheckSquare, label: "Actions" },
   { to: "/graph", icon: GitBranch, label: "Graph" },

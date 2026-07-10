@@ -13,7 +13,7 @@ searchRoutes.get("/", async (c) => {
   const q = c.req.query("q")?.trim();
   if (!q) return c.json({ results: [] });
 
-  const [documents, goals, actions] = await Promise.all([
+  const [documents, goals, actions, events, files] = await Promise.all([
     prisma.document.findMany({
       where: {
         userId,
@@ -47,6 +47,28 @@ searchRoutes.get("/", async (c) => {
       take: 10,
       select: { id: true, title: true, status: true, updatedAt: true },
     }),
+    prisma.calendarEvent.findMany({
+      where: {
+        userId,
+        OR: [
+          { title: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 10,
+      select: { id: true, title: true, startAt: true, updatedAt: true },
+    }),
+    prisma.fileUpload.findMany({
+      where: {
+        userId,
+        OR: [
+          { filename: { contains: q, mode: "insensitive" } },
+          { extractedText: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 10,
+      select: { id: true, filename: true, mimeType: true, updatedAt: true },
+    }),
   ]);
 
   const results = [
@@ -70,6 +92,20 @@ searchRoutes.get("/", async (c) => {
       title: a.title,
       subtitle: a.status,
       updatedAt: a.updatedAt,
+    })),
+    ...events.map((e) => ({
+      id: e.id,
+      type: "event" as const,
+      title: e.title,
+      subtitle: e.startAt.toISOString().slice(0, 10),
+      updatedAt: e.updatedAt,
+    })),
+    ...files.map((f) => ({
+      id: f.id,
+      type: "file" as const,
+      title: f.filename,
+      subtitle: f.mimeType,
+      updatedAt: f.updatedAt,
     })),
   ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 

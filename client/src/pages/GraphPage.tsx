@@ -20,6 +20,8 @@ const typeColors: Record<string, string> = {
   DOCUMENT: "#0071e3",
   GOAL: "#34c759",
   ACTION: "#ff9500",
+  CALENDAR_EVENT: "#af52de",
+  FILE: "#5856d6",
 };
 
 function graphToFlow(data: GraphData): { nodes: Node[]; edges: Edge[] } {
@@ -74,11 +76,11 @@ export function GraphPage() {
       if (!connection.source || !connection.target) return;
 
       const [sourceType, sourceId] = connection.source.split(":") as [
-        "DOCUMENT" | "GOAL" | "ACTION",
+        "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE",
         string,
       ];
       const [targetType, targetId] = connection.target.split(":") as [
-        "DOCUMENT" | "GOAL" | "ACTION",
+        "DOCUMENT" | "GOAL" | "ACTION" | "CALENDAR_EVENT" | "FILE",
         string,
       ];
 
@@ -121,7 +123,7 @@ export function GraphPage() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Knowledge Graph</h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            Drag between nodes to connect ideas. Blue = notes, green = goals, orange = actions.
+            Drag between nodes to connect ideas. Blue = notes, green = goals, orange = actions, purple = calendar, indigo = files.
           </p>
         </div>
         <Button variant="secondary" onClick={load}>
