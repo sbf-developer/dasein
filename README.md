@@ -1,4 +1,4 @@
-# Episteme
+# Dasein
 
 Personal ontology & epistemology app — map goals, connect ideas, track actions, and get AI-assisted planning.
 
