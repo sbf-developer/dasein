@@ -42,7 +42,7 @@ export function DocumentsPage() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col px-6 py-8">
+    <div className="mx-auto flex h-full max-w-4xl flex-col px-4 py-6 sm:px-6 sm:py-8">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Documents</h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
@@ -78,8 +78,8 @@ export function DocumentsPage() {
         />
       </div>
 
-      <div className="mt-6 flex min-h-0 flex-1 gap-4">
-        <div className="w-72 shrink-0 space-y-1 overflow-auto">
+      <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <div className="max-h-48 w-full shrink-0 space-y-1 overflow-auto lg:max-h-none lg:w-72">
           {files.length === 0 ? (
             <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] py-12 text-center">
               <FolderOpen size={28} className="mx-auto text-[var(--color-text-tertiary)]" />
@@ -106,7 +106,7 @@ export function DocumentsPage() {
           )}
         </div>
 
-        <div className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)]">
+        <div className="min-h-[40vh] min-w-0 flex-1 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] lg:min-h-0">
           {selected ? (
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">

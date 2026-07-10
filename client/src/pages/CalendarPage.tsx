@@ -85,10 +85,13 @@ export function CalendarPage() {
 
   const create = async () => {
     if (!title.trim()) return;
+    const startIso = allDay
+      ? new Date(`${startAt.slice(0, 10)}T12:00:00`).toISOString()
+      : new Date(startAt).toISOString();
     await api.calendar.create({
       title: title.trim(),
       description,
-      startAt: new Date(startAt).toISOString(),
+      startAt: startIso,
       allDay,
     });
     setTitle("");
@@ -109,15 +112,15 @@ export function CalendarPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Calendar</h2>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
             Schedule events and see what's coming up.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setShowForm(true)}>
+        <Button variant="primary" className="w-full sm:w-auto" onClick={() => setShowForm(true)}>
           <Plus size={16} />
           New event
         </Button>
@@ -135,13 +138,25 @@ export function CalendarPage() {
               rows={2}
             />
             <input
-              type="datetime-local"
-              value={startAt}
+              type={allDay ? "date" : "datetime-local"}
+              value={allDay ? startAt.slice(0, 10) : startAt}
               onChange={(e) => setStartAt(e.target.value)}
               className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
             />
             <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={allDay}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setAllDay(checked);
+                  if (checked) {
+                    setStartAt(startAt.slice(0, 10));
+                  } else if (startAt.length === 10) {
+                    setStartAt(`${startAt}T09:00`);
+                  }
+                }}
+              />
               All day
             </label>
             <div className="flex gap-2">
@@ -177,7 +192,7 @@ export function CalendarPage() {
 
         <div className="grid grid-cols-7 gap-px">
           {days.map(({ date, key }) => {
-            if (!date) return <div key={key} className="min-h-[72px]" />;
+            if (!date) return <div key={key} className="min-h-[44px] sm:min-h-[72px]" />;
             const dayKey = toDateInput(date);
             const dayEvents = eventsByDay.get(dayKey) ?? [];
             const isToday = toDateInput(new Date()) === dayKey;
@@ -188,7 +203,7 @@ export function CalendarPage() {
                 key={key}
                 onClick={() => setSelected(dayKey)}
                 onDoubleClick={() => openFormForDay(date)}
-                className={`min-h-[72px] rounded-[var(--radius-sm)] border p-1.5 text-left transition-colors ${
+                className={`min-h-[44px] rounded-[var(--radius-sm)] border p-1 text-left transition-colors sm:min-h-[72px] sm:p-1.5 ${
                   isSelected
                     ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
                     : "border-transparent hover:bg-[var(--color-border-subtle)]"
@@ -201,7 +216,7 @@ export function CalendarPage() {
                 >
                   {date.getDate()}
                 </span>
-                <div className="mt-1 space-y-0.5">
+                <div className="mt-0.5 hidden space-y-0.5 sm:mt-1 sm:block">
                   {dayEvents.slice(0, 2).map((e) => (
                     <div
                       key={e.id}
@@ -238,7 +253,7 @@ export function CalendarPage() {
               {selectedEvents.map((e) => (
                 <div
                   key={e.id}
-                  className="flex items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 py-3"
+                  className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div>
                     <p className="font-medium">{e.title}</p>

@@ -41,7 +41,7 @@ export function GoalsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Goals</h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
@@ -49,7 +49,7 @@ export function GoalsPage() {
         </p>
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         <Input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -78,9 +78,9 @@ export function GoalsPage() {
               {editing === goal.id ? (
                 <EditGoal goal={goal} onSave={(d) => update(goal.id, d)} onCancel={() => setEditing(null)} />
               ) : (
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-medium">{goal.title}</h3>
                       <span className={`rounded px-1.5 py-0.5 text-xs ${statusColors[goal.status]}`}>
                         {goal.status}
@@ -97,7 +97,7 @@ export function GoalsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex shrink-0 gap-1">
+                  <div className="flex shrink-0 flex-wrap gap-1">
                     <Button variant="ghost" onClick={() => setEditing(goal.id)}>
                       Edit
                     </Button>

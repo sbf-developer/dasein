@@ -78,7 +78,8 @@ authRoutes.get("/google/callback", async (c) => {
       code,
       client_id: env.GOOGLE_CLIENT_ID!,
       client_secret: env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: `${env.APP_URL}/api/auth/google/callback`,      grant_type: "authorization_code",
+      redirect_uri: `${env.APP_URL}/api/auth/google/callback`,
+      grant_type: "authorization_code",
     }),
   });
 

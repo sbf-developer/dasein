@@ -33,15 +33,15 @@ export function NotesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Notes</h2>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
             Capture thoughts, outlines, and plans.
           </p>
         </div>
-        <Button variant="primary" onClick={create}>
+        <Button variant="primary" className="w-full sm:w-auto" onClick={create}>
           <Plus size={16} />
           New note
         </Button>

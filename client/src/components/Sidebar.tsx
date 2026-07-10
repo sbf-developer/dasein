@@ -12,6 +12,7 @@ import {
   FolderUp,
   PanelLeftClose,
   PanelLeft,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
@@ -30,19 +31,27 @@ const nav = [
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const { collapsed, effectiveWidth, setWidth, toggleCollapsed } = useSidebar();
+  const {
+    collapsed,
+    effectiveWidth,
+    isMobile,
+    mobileOpen,
+    setWidth,
+    toggleCollapsed,
+    closeMobile,
+  } = useSidebar();
   const dragging = useRef(false);
   const asideRef = useRef<HTMLElement>(null);
 
   const onResizeStart = useCallback(
     (e: React.MouseEvent) => {
-      if (collapsed) return;
+      if (collapsed || isMobile) return;
       e.preventDefault();
       dragging.current = true;
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [collapsed]
+    [collapsed, isMobile]
   );
 
   useEffect(() => {
@@ -65,45 +74,51 @@ export function Sidebar() {
     };
   }, [setWidth]);
 
-  return (
-    <aside
-      ref={asideRef}
-      style={{ width: effectiveWidth }}
-      className="relative flex h-full shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] transition-[width] duration-300 ease-in-out"
-    >
-      {/* Header */}
-      <div className={`flex items-center gap-2 px-3 pt-4 ${collapsed ? "flex-col pb-2" : "pb-3"}`}>
-        {!collapsed && (
+  const content = (
+    <>
+      <div className={`flex items-center gap-2 px-3 pt-4 ${collapsed && !isMobile ? "flex-col pb-2" : "pb-3"}`}>
+        {(!collapsed || isMobile) && (
           <div className="min-w-0 flex-1 px-1">
             <h1 className="truncate text-base font-semibold tracking-tight">Episteme</h1>
             <p className="truncate text-xs text-[var(--color-text-tertiary)]">Personal ontology</p>
           </div>
         )}
-        <button
-          onClick={toggleCollapsed}
-          className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-white/60 hover:text-[var(--color-text)]"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeft size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
-        </button>
+        {isMobile ? (
+          <button
+            type="button"
+            onClick={closeMobile}
+            aria-label="Close menu"
+            className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-white/60 hover:text-[var(--color-text)]"
+          >
+            <X size={18} strokeWidth={1.75} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-white/60 hover:text-[var(--color-text)]"
+          >
+            {collapsed ? <PanelLeft size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
+          </button>
+        )}
       </div>
 
-      {/* Search */}
-      <div className={`px-3 ${collapsed ? "pb-2" : "pb-3"}`}>
-        <SearchBar collapsed={collapsed} />
+      <div className={`px-3 ${collapsed && !isMobile ? "pb-2" : "pb-3"}`}>
+        <SearchBar collapsed={collapsed && !isMobile} />
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-3">
+      <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-3">
         {nav.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/"}
-            title={collapsed ? label : undefined}
+            title={collapsed && !isMobile ? label : undefined}
+            onClick={closeMobile}
             className={({ isActive }) =>
               `flex items-center rounded-[var(--radius-sm)] text-sm transition-colors ${
-                collapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2"
+                collapsed && !isMobile ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2"
               } ${
                 isActive
                   ? "bg-white font-medium text-[var(--color-text)] shadow-sm"
@@ -112,45 +127,73 @@ export function Sidebar() {
             }
           >
             <Icon size={16} strokeWidth={1.75} className="shrink-0" />
-            {!collapsed && <span className="truncate">{label}</span>}
+            {(!collapsed || isMobile) && <span className="truncate">{label}</span>}
           </NavLink>
         ))}
       </nav>
 
-      {/* User */}
       <div className="border-t border-[var(--color-border)] p-3">
         <div
           className={`flex items-center rounded-[var(--radius-sm)] ${
-            collapsed ? "flex-col gap-2 py-1" : "gap-2.5 px-3 py-2"
+            collapsed && !isMobile ? "flex-col gap-2 py-1" : "gap-2.5 px-3 py-2"
           }`}
         >
           {user?.image ? (
-            <img src={user.image} alt="" className="h-7 w-7 shrink-0 rounded-full" title={collapsed ? user.name ?? undefined : undefined} />
+            <img src={user.image} alt="" className="h-7 w-7 shrink-0 rounded-full" />
           ) : (
-            <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-border)] text-xs font-medium"
-              title={collapsed ? user?.name ?? user?.email ?? undefined : undefined}
-            >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-border)] text-xs font-medium">
               {user?.name?.[0] ?? user?.email?.[0] ?? "?"}
             </div>
           )}
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{user?.name ?? "User"}</p>
               <p className="truncate text-xs text-[var(--color-text-tertiary)]">{user?.email}</p>
             </div>
           )}
           <button
+            type="button"
             onClick={logout}
+            aria-label="Sign out"
             className="shrink-0 rounded p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-white hover:text-[var(--color-text)]"
-            title="Sign out"
           >
             <LogOut size={15} />
           </button>
         </div>
       </div>
+    </>
+  );
 
-      {/* Resize handle */}
+  if (isMobile) {
+    return (
+      <>
+        {mobileOpen && (
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 z-40 bg-black/30 md:hidden"
+            onClick={closeMobile}
+          />
+        )}
+        <aside
+          ref={asideRef}
+          className={`fixed inset-y-0 left-0 z-50 flex w-[min(85vw,280px)] flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] transition-transform duration-300 ease-in-out md:hidden ${
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          {content}
+        </aside>
+      </>
+    );
+  }
+
+  return (
+    <aside
+      ref={asideRef}
+      style={{ width: effectiveWidth }}
+      className="relative hidden h-full shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] transition-[width] duration-300 ease-in-out md:flex"
+    >
+      {content}
       {!collapsed && (
         <div
           onMouseDown={onResizeStart}

@@ -30,7 +30,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <h2 className="text-xl font-semibold tracking-tight">Overview</h2>
       <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
         Your personal knowledge and progress at a glance.
@@ -130,7 +130,7 @@ function Section({
             <Link
               key={item.id}
               to={item.href ?? link}
-              className={`flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-[var(--color-border-subtle)] ${
+              className={`flex flex-col gap-1 px-4 py-3 text-sm transition-colors hover:bg-[var(--color-border-subtle)] sm:flex-row sm:items-center sm:justify-between ${
                 i > 0 ? "border-t border-[var(--color-border-subtle)]" : ""
               }`}
             >

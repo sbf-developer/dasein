@@ -1,16 +1,29 @@
-import { createContext, useContext, useCallback, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 400;
 const DEFAULT_WIDTH = 224;
 const COLLAPSED_WIDTH = 52;
+const MOBILE_BREAKPOINT = "(max-width: 767px)";
 
 type SidebarContextType = {
   width: number;
   collapsed: boolean;
   effectiveWidth: number;
+  isMobile: boolean;
+  mobileOpen: boolean;
   setWidth: (w: number) => void;
   toggleCollapsed: () => void;
+  openMobile: () => void;
+  closeMobile: () => void;
   minWidth: number;
   maxWidth: number;
   collapsedWidth: number;
@@ -19,6 +32,8 @@ type SidebarContextType = {
 const SidebarContext = createContext<SidebarContextType | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [width, setWidthState] = useState(() => {
     const saved = localStorage.getItem("sidebar-width");
     const parsed = saved ? Number(saved) : DEFAULT_WIDTH;
@@ -28,6 +43,17 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sidebar-collapsed") === "true"
   );
+
+  useEffect(() => {
+    if (!isMobile) setMobileOpen(false);
+  }, [isMobile]);
+
+  useEffect(() => {
+    document.body.style.overflow = isMobile && mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobile, mobileOpen]);
 
   const setWidth = useCallback((w: number) => {
     const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
@@ -43,7 +69,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const effectiveWidth = collapsed ? COLLAPSED_WIDTH : width;
+  const openMobile = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const effectiveWidth = isMobile ? 0 : collapsed ? COLLAPSED_WIDTH : width;
 
   return (
     <SidebarContext.Provider
@@ -51,8 +80,12 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         width,
         collapsed,
         effectiveWidth,
+        isMobile,
+        mobileOpen,
         setWidth,
         toggleCollapsed,
+        openMobile,
+        closeMobile,
         minWidth: MIN_WIDTH,
         maxWidth: MAX_WIDTH,
         collapsedWidth: COLLAPSED_WIDTH,

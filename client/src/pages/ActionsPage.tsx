@@ -41,6 +41,7 @@ export function ActionsPage() {
   };
 
   const remove = async (id: string) => {
+    if (!confirm("Delete this action?")) return;
     await api.actions.delete(id);
     load();
   };
@@ -49,7 +50,7 @@ export function ActionsPage() {
   const done = actions.filter((a) => a.status === "DONE");
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Actions</h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
@@ -57,7 +58,7 @@ export function ActionsPage() {
         </p>
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         <Input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -130,7 +131,7 @@ function ActionList({
         {actions.map((action) => (
           <div
             key={action.id}
-            className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 py-2.5"
+            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2.5 sm:gap-3 sm:px-4"
           >
             <button
               onClick={() => onCycle(action)}
@@ -140,7 +141,7 @@ function ActionList({
               {statusIcons[action.status]}
             </button>
             <span
-              className={`flex-1 text-sm ${action.status === "DONE" ? "line-through text-[var(--color-text-tertiary)]" : "font-medium"}`}
+              className={`min-w-0 flex-1 basis-full text-sm sm:basis-auto ${action.status === "DONE" ? "line-through text-[var(--color-text-tertiary)]" : "font-medium"}`}
             >
               {action.title}
             </span>
@@ -152,7 +153,7 @@ function ActionList({
                 });
                 onUpdate();
               }}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-transparent px-2 py-1 text-xs text-[var(--color-text-tertiary)]"
+              className="max-w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-transparent px-2 py-1 text-xs text-[var(--color-text-tertiary)] sm:max-w-[10rem]"
             >
               <option value="">No goal</option>
               {goals.map((g) => (
