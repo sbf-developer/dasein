@@ -124,6 +124,11 @@ export const api = {
     thread: (id: string) => request<AiThreadDetail>(`/ai/threads/${id}`),
     createThread: (title?: string) =>
       request<AiThreadListItem>("/ai/threads", { method: "POST", body: JSON.stringify({ title }) }),
+    renameThread: (id: string, title: string) =>
+      request<AiThreadListItem>(`/ai/threads/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      }),
     deleteThread: (id: string) =>
       request<{ ok: boolean }>(`/ai/threads/${id}`, { method: "DELETE" }),
     chat: (message: string, threadId?: string) =>

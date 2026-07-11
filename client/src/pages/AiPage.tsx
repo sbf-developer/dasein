@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Search, Send, Trash2, X, PanelLeft, PanelLeftClose, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, Send, Trash2, X, PanelLeft, PanelLeftClose, SlidersHorizontal, Pencil } from "lucide-react";
 import { api, type AiMessage, type AiThreadListItem } from "@/lib/api";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -61,7 +61,10 @@ export function AiPage() {
   const [aiInstructions, setAiInstructions] = useState("");
   const [savingInstructions, setSavingInstructions] = useState(false);
   const [instructionsError, setInstructionsError] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const openRequestRef = useRef(0);
   const sendRequestRef = useRef(0);
   const instructionsSaveGen = useRef(0);
@@ -159,6 +162,39 @@ export function AiPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
+  useEffect(() => {
+    if (renamingId) renameInputRef.current?.focus();
+  }, [renamingId]);
+
+  const startRename = (id: string, title: string) => {
+    setRenamingId(id);
+    setRenameDraft(title);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameDraft("");
+  };
+
+  const saveRename = async () => {
+    if (!renamingId) return;
+    const title = renameDraft.trim();
+    const id = renamingId;
+    const current = threads.find((t) => t.id === id)?.title;
+    if (!title) {
+      cancelRename();
+      return;
+    }
+    cancelRename();
+    if (title === current) return;
+    try {
+      const updated = await api.ai.renameThread(id, title);
+      setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title: updated.title } : t)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not rename chat");
+    }
+  };
+
   const closeThreads = () => {
     setShowThreads(false);
     if (!isNarrow) localStorage.setItem(HISTORY_OPEN_KEY, "false");
@@ -169,6 +205,7 @@ export function AiPage() {
   };
 
   const startNewChat = () => {
+    cancelRename();
     sendRequestRef.current += 1;
     openRequestRef.current += 1;
     wantsNewChat.current = true;
@@ -344,32 +381,65 @@ export function AiPage() {
                 threadId === t.id ? "bg-white/90" : "hover:bg-white/50"
               }`}
             >
-              <button
-                type="button"
-                onClick={() => openThread(t.id)}
-                className="min-w-0 flex-1 cursor-pointer text-left"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="line-clamp-1 flex-1 text-xs font-medium text-[var(--color-text)]">
-                    {t.title}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-[var(--color-text-tertiary)]">
-                    {formatRelative(t.updatedAt)}
-                  </span>
-                </div>
-                <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--color-text-tertiary)]">
-                  {threadPreview(t)}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => deleteThread(t.id)}
-                className="shrink-0 rounded-full p-1 text-[var(--color-text-tertiary)] opacity-100 transition-colors hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
-                title="Delete chat"
-                aria-label={`Delete ${t.title}`}
-              >
-                <Trash2 size={13} />
-              </button>
+              <div className="min-w-0 flex-1">
+                {renamingId === t.id ? (
+                  <input
+                    ref={renameInputRef}
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void saveRename();
+                      if (e.key === "Escape") cancelRename();
+                    }}
+                    onBlur={() => void saveRename()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full rounded bg-white px-1.5 py-0.5 text-xs font-medium text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)]"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openThread(t.id)}
+                    className="w-full cursor-pointer text-left"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="line-clamp-1 flex-1 text-xs font-medium text-[var(--color-text)]">
+                        {t.title}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-[var(--color-text-tertiary)]">
+                        {formatRelative(t.updatedAt)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--color-text-tertiary)]">
+                      {threadPreview(t)}
+                    </p>
+                  </button>
+                )}
+              </div>
+              <div className="flex shrink-0 items-start gap-0.5">
+                {renamingId !== t.id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRename(t.id, t.title);
+                    }}
+                    className="rounded-full p-1 text-[var(--color-text-tertiary)] opacity-100 transition-colors hover:text-[var(--color-text)] lg:opacity-0 lg:group-hover:opacity-100"
+                    title="Rename chat"
+                    aria-label={`Rename ${t.title}`}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => deleteThread(t.id)}
+                  className="rounded-full p-1 text-[var(--color-text-tertiary)] opacity-100 transition-colors hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
+                  title="Delete chat"
+                  aria-label={`Delete ${t.title}`}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -402,9 +472,32 @@ export function AiPage() {
               <PanelLeft size={17} strokeWidth={1.75} />
             </button>
           )}
-          <h2 className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-[var(--color-text)]">
-            {headerTitle}
-          </h2>
+          {threadId && renamingId === threadId ? (
+            <input
+              ref={renameInputRef}
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveRename();
+                if (e.key === "Escape") cancelRename();
+              }}
+              onBlur={() => void saveRename()}
+              className="min-w-0 flex-1 rounded bg-[var(--color-border-subtle)] px-2 py-1 text-sm font-medium text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)]"
+            />
+          ) : threadId ? (
+            <button
+              type="button"
+              onClick={() => startRename(threadId, headerTitle)}
+              title="Rename chat"
+              className="min-w-0 flex-1 truncate text-left text-sm font-medium tracking-tight text-[var(--color-text)] transition-colors hover:text-[var(--color-text-secondary)]"
+            >
+              {headerTitle}
+            </button>
+          ) : (
+            <h2 className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-[var(--color-text)]">
+              {headerTitle}
+            </h2>
+          )}
           <button
             type="button"
             onClick={() => setShowPersonalize((v) => !v)}

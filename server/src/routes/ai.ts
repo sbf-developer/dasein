@@ -136,6 +136,22 @@ aiRoutes.post("/chat", async (c) => {
   return c.json({ threadId, userMessage: userMsg, message: assistantMsg });
 });
 
+aiRoutes.patch("/threads/:id", async (c) => {
+  const userId = c.get("userId");
+  const body = z
+    .object({ title: z.string().min(1).max(120) })
+    .parse(await c.req.json());
+  const existing = await prisma.aiThread.findFirst({
+    where: { id: c.req.param("id"), userId },
+  });
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  const thread = await prisma.aiThread.update({
+    where: { id: existing.id },
+    data: { title: body.title.trim() },
+  });
+  return c.json(thread);
+});
+
 aiRoutes.delete("/threads/:id", async (c) => {
   const userId = c.get("userId");
   const existing = await prisma.aiThread.findFirst({
