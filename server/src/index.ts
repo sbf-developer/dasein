@@ -20,6 +20,7 @@ import { fileRoutes } from "./routes/files.js";
 import { searchRoutes } from "./routes/search.js";
 import { kpiRoutes } from "./routes/kpis.js";
 import { doListRoutes } from "./routes/do-list.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { getEnv, isProduction } from "./lib/env.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -69,6 +70,7 @@ app.route("/api/files", fileRoutes);
 app.route("/api/search", searchRoutes);
 app.route("/api/kpis", kpiRoutes);
 app.route("/api/do-list", doListRoutes);
+app.route("/api/settings", settingsRoutes);
 
 app.onError((err, c) => {
   if (err instanceof ZodError) {

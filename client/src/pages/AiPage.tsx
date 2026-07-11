@@ -1,10 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Search, Send, Sparkles, Trash2, X, PanelLeft } from "lucide-react";
+import { Plus, Search, Send, Trash2, X, PanelLeft, SlidersHorizontal } from "lucide-react";
 import { api, type AiMessage, type AiThreadListItem } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 const NARROW_QUERY = "(max-width: 1023px)";
+
+const SUGGESTIONS = [
+  "What should I focus on this week?",
+  "Help me break down my top goal",
+  "What patterns do you see in my notes?",
+];
+
+const INSTRUCTION_PRESETS = [
+  "Give me short, direct answers.",
+  "Be detailed and thorough.",
+  "Challenge my thinking — push back when needed.",
+  "Use bullet points.",
+  "Be warm and encouraging.",
+  "Focus on actionable next steps only.",
+];
 
 function formatRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -36,12 +50,53 @@ export function AiPage() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [threadsError, setThreadsError] = useState<string | null>(null);
+  const [showPersonalize, setShowPersonalize] = useState(false);
+  const [aiInstructions, setAiInstructions] = useState("");
+  const [savingInstructions, setSavingInstructions] = useState(false);
+  const [instructionsError, setInstructionsError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const openRequestRef = useRef(0);
+  const instructionsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const instructionsRef = useRef(aiInstructions);
+  instructionsRef.current = aiInstructions;
 
-  const activeTitle = threadId
+  const headerTitle = threadId
     ? (threads.find((t) => t.id === threadId)?.title ?? "Chat")
-    : "New chat";
+    : "Dasein";
+
+  useEffect(() => {
+    api.settings
+      .getAi()
+      .then(({ instructions }) => setAiInstructions(instructions))
+      .catch(() => setAiInstructions(""));
+  }, []);
+
+  useEffect(() => {
+    return () => clearTimeout(instructionsSaveTimer.current);
+  }, []);
+
+  const persistInstructions = useCallback((value: string) => {
+    setAiInstructions(value);
+    setInstructionsError(null);
+    clearTimeout(instructionsSaveTimer.current);
+    setSavingInstructions(true);
+    instructionsSaveTimer.current = setTimeout(async () => {
+      try {
+        const { instructions } = await api.settings.updateAi(value);
+        setAiInstructions(instructions);
+      } catch (err) {
+        setInstructionsError(err instanceof Error ? err.message : "Could not save instructions");
+      } finally {
+        setSavingInstructions(false);
+      }
+    }, 500);
+  }, []);
+
+  const addPreset = (preset: string) => {
+    const current = instructionsRef.current;
+    const next = current.trim() ? `${current.trim()}\n${preset}` : preset;
+    persistInstructions(next);
+  };
 
   const loadThreads = useCallback(async (q?: string) => {
     setLoadingThreads(true);
@@ -166,7 +221,7 @@ export function AiPage() {
 
   const threadPanel = (
     <div
-      className={`flex h-full min-h-0 w-[min(88vw,18rem)] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] lg:w-64 ${
+      className={`flex h-full min-h-0 w-[min(88vw,18rem)] shrink-0 flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-sidebar)] lg:w-60 ${
         isNarrow
           ? `fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out ${
               showThreads ? "translate-x-0" : "-translate-x-full"
@@ -174,24 +229,28 @@ export function AiPage() {
           : "relative translate-x-0"
       }`}
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 py-2.5 lg:hidden">
-        <span className="text-sm font-medium">Chats</span>
+      <div className="flex shrink-0 items-center justify-between px-4 py-3 lg:hidden">
+        <span className="text-sm font-medium text-[var(--color-text)]">History</span>
         <button
           type="button"
           onClick={closeThreads}
           aria-label="Close chat history"
-          className="rounded p-1.5 text-[var(--color-text-tertiary)] hover:bg-white/60"
+          className="rounded-full p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-white/80 hover:text-[var(--color-text)]"
         >
           <X size={16} />
         </button>
       </div>
 
-      <div className="shrink-0 border-b border-[var(--color-border)] p-3">
-        <Button variant="primary" className="w-full" onClick={startNewChat}>
-          <Plus size={16} />
+      <div className="shrink-0 space-y-2 px-3 pb-3">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-white/70 hover:text-[var(--color-text)]"
+        >
+          <Plus size={15} strokeWidth={1.75} />
           New chat
-        </Button>
-        <div className="relative mt-2">
+        </button>
+        <div className="relative">
           <Search
             size={14}
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]"
@@ -199,15 +258,15 @@ export function AiPage() {
           <input
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
-            placeholder="Search chats…"
-            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] py-2 pl-8 pr-7 text-sm outline-none focus:border-[var(--color-accent)]"
+            placeholder="Search…"
+            className="w-full rounded-[var(--radius-md)] bg-white/50 py-2 pl-8 pr-7 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:bg-white/80"
           />
           {threadSearch && (
             <button
               type="button"
               onClick={() => setThreadSearch("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)]"
             >
               <X size={12} />
             </button>
@@ -215,21 +274,21 @@ export function AiPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
         {loadingThreads ? (
-          <p className="px-2 py-4 text-center text-xs text-[var(--color-text-tertiary)]">Loading…</p>
+          <p className="px-2 py-6 text-center text-xs text-[var(--color-text-tertiary)]">Loading…</p>
         ) : threadsError ? (
-          <p className="px-2 py-4 text-center text-xs text-red-600">{threadsError}</p>
+          <p className="px-2 py-6 text-center text-xs text-red-600">{threadsError}</p>
         ) : threads.length === 0 ? (
-          <p className="px-2 py-4 text-center text-xs text-[var(--color-text-tertiary)]">
+          <p className="px-2 py-6 text-center text-xs text-[var(--color-text-tertiary)]">
             {threadSearch ? "No chats found" : "No conversations yet"}
           </p>
         ) : (
           threads.map((t) => (
             <div
               key={t.id}
-              className={`group mb-0.5 flex w-full items-start gap-1 rounded-[var(--radius-sm)] px-2.5 py-2.5 transition-colors ${
-                threadId === t.id ? "bg-white shadow-sm" : "hover:bg-white/60"
+              className={`group mb-0.5 flex w-full items-start gap-0.5 rounded-[var(--radius-md)] px-2 py-2 transition-colors ${
+                threadId === t.id ? "bg-white/90" : "hover:bg-white/50"
               }`}
             >
               <button
@@ -237,7 +296,7 @@ export function AiPage() {
                 onClick={() => openThread(t.id)}
                 className="min-w-0 flex-1 cursor-pointer text-left"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-baseline justify-between gap-2">
                   <span className="line-clamp-1 flex-1 text-xs font-medium text-[var(--color-text)]">
                     {t.title}
                   </span>
@@ -245,18 +304,18 @@ export function AiPage() {
                     {formatRelative(t.updatedAt)}
                   </span>
                 </div>
-                <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--color-text-tertiary)]">
+                <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--color-text-tertiary)]">
                   {threadPreview(t)}
                 </p>
               </button>
               <button
                 type="button"
                 onClick={() => deleteThread(t.id)}
-                className="mt-0.5 shrink-0 rounded p-1 text-[var(--color-text-tertiary)] opacity-100 hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
+                className="shrink-0 rounded-full p-1 text-[var(--color-text-tertiary)] opacity-100 transition-colors hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
                 title="Delete chat"
                 aria-label={`Delete ${t.title}`}
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
               </button>
             </div>
           ))
@@ -266,12 +325,12 @@ export function AiPage() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0">
+    <div className="relative flex h-full min-h-0 bg-[var(--color-surface)]">
       {isNarrow && showThreads && (
         <button
           type="button"
           aria-label="Close chat history"
-          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px] lg:hidden"
           onClick={closeThreads}
         />
       )}
@@ -279,58 +338,94 @@ export function AiPage() {
       {threadPanel}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-[var(--color-border)] px-3 py-2.5 sm:px-5 sm:py-3">
-          <div className="flex items-center gap-2">
-            {isNarrow && (
-              <button
-                type="button"
-                onClick={() => setShowThreads(true)}
-                aria-label="Open chat history"
-                className="shrink-0 rounded p-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-border-subtle)]"
-              >
-                <PanelLeft size={18} />
-              </button>
+        <header className="flex shrink-0 items-center gap-1 px-3 py-3 sm:px-5">
+          {isNarrow && (
+            <button
+              type="button"
+              onClick={() => setShowThreads(true)}
+              aria-label="Open chat history"
+              className="shrink-0 rounded-full p-2 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+            >
+              <PanelLeft size={17} strokeWidth={1.75} />
+            </button>
+          )}
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-[var(--color-text)]">
+            {headerTitle}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowPersonalize((v) => !v)}
+            aria-label="Personalize AI"
+            className={`relative shrink-0 rounded-full p-2 transition-colors ${
+              showPersonalize
+                ? "bg-[var(--color-text)] text-white"
+                : "text-[var(--color-text-tertiary)] hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            <SlidersHorizontal size={17} strokeWidth={1.75} />
+            {aiInstructions.trim() && !showPersonalize && (
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
             )}
-            <Sparkles size={18} className="hidden shrink-0 text-[var(--color-accent)] sm:block" />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-semibold tracking-tight sm:text-base lg:text-lg">
-                {activeTitle}
-              </h2>
-            </div>
-            {isNarrow && (
-              <Button
-                variant="secondary"
-                className="shrink-0 px-2.5 py-2"
-                onClick={startNewChat}
-                aria-label="New chat"
-              >
-                <Plus size={16} />
-              </Button>
-            )}
-          </div>
-          <p className="mt-1 hidden text-xs text-[var(--color-text-secondary)] sm:block">
-            Context-aware help using your goals, KPIs, Do-list, calendar, notes, and documents.
-          </p>
+          </button>
+          <button
+            type="button"
+            onClick={startNewChat}
+            aria-label="New chat"
+            className="shrink-0 rounded-full p-2 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+          >
+            <Plus size={17} strokeWidth={1.75} />
+          </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-5">
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-            {messages.length === 0 && !sending && !loadingThread && (
-              <div className="py-6 text-center sm:py-12">
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  Ask about your goals, get help planning, or connect ideas.
+        {showPersonalize && (
+          <div className="shrink-0 border-b border-[var(--color-border-subtle)] px-3 py-4 sm:px-5">
+            <div className="mx-auto max-w-2xl">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+                  Personal instructions
                 </p>
-                <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:justify-center sm:overflow-visible">
-                  {[
-                    "What should I focus on this week?",
-                    "Help me break down my top goal",
-                    "What patterns do you see in my notes?",
-                  ].map((s) => (
+                <span className={`text-[10px] ${instructionsError ? "text-red-600" : "text-[var(--color-text-tertiary)]"}`}>
+                  {instructionsError
+                    ? instructionsError
+                    : savingInstructions
+                      ? "Saving…"
+                      : "Saved for all chats"}
+                </span>
+              </div>
+              <textarea
+                value={aiInstructions}
+                onChange={(e) => persistInstructions(e.target.value)}
+                placeholder="e.g. Give me short answers. Be direct. Don't use bullet points."
+                rows={3}
+                className="w-full resize-none rounded-xl bg-[var(--color-border-subtle)] px-3 py-2.5 text-sm leading-relaxed text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:ring-1 focus:ring-[var(--color-border)]"
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {INSTRUCTION_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => addPreset(preset)}
+                    className="rounded-full px-2.5 py-1 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5">
+          <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-2 sm:py-4">
+            {messages.length === 0 && !sending && !loadingThread && (
+              <div className="flex flex-col items-center justify-center py-16 sm:py-24">
+                <div className="flex flex-col items-center gap-1.5">
+                  {SUGGESTIONS.map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => setInput(s)}
-                      className="shrink-0 rounded-full border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text)] sm:shrink"
+                      className="text-sm text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text)]"
                     >
                       {s}
                     </button>
@@ -340,8 +435,8 @@ export function AiPage() {
             )}
 
             {loadingThread && (
-              <div className="flex justify-center py-12">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
+              <div className="flex justify-center py-16">
+                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-[var(--color-border)] border-t-[var(--color-text-tertiary)]" />
               </div>
             )}
 
@@ -352,10 +447,10 @@ export function AiPage() {
                   className={`flex ${msg.role === "USER" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[min(92%,36rem)] rounded-[var(--radius-lg)] px-3.5 py-2.5 text-sm leading-relaxed sm:px-4 sm:py-3 ${
+                    className={`max-w-[min(90%,34rem)] text-sm leading-relaxed ${
                       msg.role === "USER"
-                        ? "bg-[var(--color-accent)] text-white"
-                        : "border border-[var(--color-border)] bg-[var(--color-surface-elevated)]"
+                        ? "rounded-2xl bg-[var(--color-border-subtle)] px-4 py-2.5 text-[var(--color-text)]"
+                        : "px-1 py-0.5 text-[var(--color-text)]"
                     }`}
                   >
                     <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -364,13 +459,11 @@ export function AiPage() {
               ))}
 
             {sending && messages.length > 0 && (
-              <div className="flex justify-start">
-                <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 py-3">
-                  <div className="flex gap-1">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-tertiary)]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-tertiary)] [animation-delay:0.15s]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-tertiary)] [animation-delay:0.3s]" />
-                  </div>
+              <div className="flex justify-start px-1">
+                <div className="flex gap-1 py-2">
+                  <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--color-text-tertiary)]" />
+                  <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--color-text-tertiary)] [animation-delay:0.2s]" />
+                  <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--color-text-tertiary)] [animation-delay:0.4s]" />
                 </div>
               </div>
             )}
@@ -378,24 +471,24 @@ export function AiPage() {
           </div>
         </div>
 
-        <footer className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
-          <div className="mx-auto flex w-full max-w-2xl gap-2">
+        <footer className="shrink-0 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
+          <div className="mx-auto flex w-full max-w-2xl items-center gap-1 rounded-2xl bg-[var(--color-surface-elevated)] px-1 py-1 shadow-[0_0_0_1px_var(--color-border-subtle)]">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-              placeholder="Ask anything…"
-              className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2.5 text-base outline-none focus:border-[var(--color-accent)] sm:px-4 sm:text-sm"
+              placeholder="Message…"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-[var(--color-text-tertiary)] sm:text-sm"
             />
-            <Button
-              variant="primary"
-              className="shrink-0 px-3"
+            <button
+              type="button"
               onClick={send}
               disabled={sending || !input.trim()}
               aria-label="Send message"
+              className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)] disabled:opacity-30 disabled:hover:bg-transparent"
             >
-              <Send size={16} />
-            </Button>
+              <Send size={15} strokeWidth={1.75} />
+            </button>
           </div>
         </footer>
       </div>

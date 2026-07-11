@@ -13,6 +13,7 @@ export function DocumentsPage() {
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [selected, setSelected] = useState<FileUpload | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,11 +26,15 @@ export function DocumentsPage() {
   const upload = async (fileList: FileList | null) => {
     if (!fileList?.length) return;
     setUploading(true);
+    setUploadError(null);
     try {
       for (const file of Array.from(fileList)) {
         await api.files.upload(file);
       }
       await load();
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -66,8 +71,11 @@ export function DocumentsPage() {
           {uploading ? "Uploading…" : "Drop files here or click to upload"}
         </p>
         <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
-          .txt, .md, .json, .csv, .html, .xml, .yml — max 10MB
+          .txt, .md, .json, .csv, .html, .xml, .yml
         </p>
+        {uploadError && (
+          <p className="mt-2 text-xs text-red-600">{uploadError}</p>
+        )}
         <input
           ref={inputRef}
           type="file"

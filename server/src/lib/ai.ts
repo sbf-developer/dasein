@@ -8,20 +8,47 @@ import type {
   FileUpload,
   Kpi,
   DoItem,
+  EntityType,
 } from "@prisma/client";
 import { getEnv } from "./env.js";
 
 export type UserContext = {
   user: Pick<User, "id" | "email" | "name">;
-  goals: Pick<Goal, "id" | "title" | "description" | "status" | "priority" | "targetDate">[];
+  goals: Pick<
+    Goal,
+    "id" | "title" | "description" | "status" | "priority" | "targetDate" | "parentId"
+  >[];
   actions: Pick<Action, "id" | "title" | "description" | "status" | "dueDate" | "goalId">[];
-  kpis: Pick<Kpi, "id" | "title" | "description" | "currentValue" | "targetValue" | "unit" | "goalId">[];
+  kpis: Pick<
+    Kpi,
+    "id" | "title" | "description" | "currentValue" | "targetValue" | "unit" | "goalId"
+  >[];
   doItems: Pick<DoItem, "id" | "title" | "description" | "done" | "dueDate">[];
   documents: Pick<Document, "id" | "title" | "content" | "type">[];
-  connections: Pick<Connection, "id" | "sourceType" | "sourceId" | "targetType" | "targetId" | "label">[];
-  calendarEvents: Pick<CalendarEvent, "id" | "title" | "description" | "startAt" | "endAt" | "allDay">[];
+  connections: Pick<
+    Connection,
+    "id" | "sourceType" | "sourceId" | "targetType" | "targetId" | "label"
+  >[];
+  calendarEvents: Pick<
+    CalendarEvent,
+    "id" | "title" | "description" | "startAt" | "endAt" | "allDay" | "goalId" | "actionId"
+  >[];
   fileUploads: Pick<FileUpload, "id" | "filename" | "extractedText" | "mimeType">[];
 };
+
+const ENTITY_LIMITS = {
+  goals: 60,
+  actions: 80,
+  kpis: 40,
+  doItems: 60,
+  connections: 120,
+  calendarEvents: 50,
+} as const;
+
+const CONTENT_LIMITS = {
+  document: 8000,
+  file: 8000,
+} as const;
 
 function formatProgress(current: number, target: number, unit: string) {
   const pct = target !== 0 ? Math.round((current / target) * 100) : 0;
@@ -29,34 +56,86 @@ function formatProgress(current: number, target: number, unit: string) {
   return `${current}${unitSuffix} / ${target}${unitSuffix} (${pct}%)`;
 }
 
-export function buildSystemPrompt(ctx: UserContext): string {
+function formatDate(iso: Date) {
+  return iso.toISOString().slice(0, 10);
+}
+
+function formatDateTime(iso: Date) {
+  return iso.toISOString().slice(0, 16);
+}
+
+function truncate(text: string, max: number) {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function buildTitleMaps(ctx: UserContext) {
+  const goals = new Map(ctx.goals.map((g) => [g.id, g.title]));
+  const actions = new Map(ctx.actions.map((a) => [a.id, a.title]));
+  const documents = new Map(ctx.documents.map((d) => [d.id, d.title]));
+  const events = new Map(ctx.calendarEvents.map((e) => [e.id, e.title]));
+  const files = new Map(ctx.fileUploads.map((f) => [f.id, f.filename]));
+
+  const entityLabels = new Map<string, string>();
+  for (const d of ctx.documents) entityLabels.set(`DOCUMENT:${d.id}`, d.title);
+  for (const g of ctx.goals) entityLabels.set(`GOAL:${g.id}`, g.title);
+  for (const a of ctx.actions) entityLabels.set(`ACTION:${a.id}`, a.title);
+  for (const e of ctx.calendarEvents) entityLabels.set(`CALENDAR_EVENT:${e.id}`, e.title);
+  for (const f of ctx.fileUploads) entityLabels.set(`FILE:${f.id}`, f.filename);
+
+  return { goals, actions, documents, events, files, entityLabels };
+}
+
+function resolveEntityLabel(
+  type: EntityType,
+  id: string,
+  entityLabels: Map<string, string>
+) {
+  return entityLabels.get(`${type}:${id}`) ?? `${type} (${id.slice(0, 8)}…)`;
+}
+
+export function buildSystemPrompt(ctx: UserContext, aiInstructions?: string): string {
+  const { goals: goalTitles, actions: actionTitles, entityLabels } = buildTitleMaps(ctx);
+
   const goalsText =
     ctx.goals.length > 0
       ? ctx.goals
-          .map(
-            (g) =>
-              `- [${g.status}] ${g.title}${g.description ? `: ${g.description}` : ""}${g.targetDate ? ` (target: ${g.targetDate.toISOString().slice(0, 10)})` : ""}`
-          )
+          .map((g) => {
+            const parent = g.parentId ? goalTitles.get(g.parentId) : null;
+            const parts = [
+              `[${g.status}] ${g.title}`,
+              g.description ? `: ${g.description}` : "",
+              g.priority > 0 ? ` (priority: ${g.priority})` : "",
+              g.targetDate ? ` (target: ${formatDate(g.targetDate)})` : "",
+              parent ? ` (under: ${parent})` : "",
+            ];
+            return `- ${parts.join("")}`;
+          })
           .join("\n")
       : "No goals yet.";
 
   const actionsText =
     ctx.actions.length > 0
       ? ctx.actions
-          .map(
-            (a) =>
-              `- [${a.status}] ${a.title}${a.description ? `: ${a.description}` : ""}${a.dueDate ? ` (due: ${a.dueDate.toISOString().slice(0, 10)})` : ""}`
-          )
+          .map((a) => {
+            const goal = a.goalId ? goalTitles.get(a.goalId) : null;
+            const parts = [
+              `[${a.status}] ${a.title}`,
+              a.description ? `: ${a.description}` : "",
+              goal ? ` (goal: ${goal})` : "",
+              a.dueDate ? ` (due: ${formatDate(a.dueDate)})` : "",
+            ];
+            return `- ${parts.join("")}`;
+          })
           .join("\n")
       : "No actions yet.";
 
   const kpisText =
     ctx.kpis.length > 0
       ? ctx.kpis
-          .map(
-            (k) =>
-              `- ${k.title}: ${formatProgress(k.currentValue, k.targetValue, k.unit)}${k.description ? ` — ${k.description}` : ""}`
-          )
+          .map((k) => {
+            const goal = k.goalId ? goalTitles.get(k.goalId) : null;
+            return `- ${k.title}: ${formatProgress(k.currentValue, k.targetValue, k.unit)}${k.description ? ` — ${k.description}` : ""}${goal ? ` (goal: ${goal})` : ""}`;
+          })
           .join("\n")
       : "No KPIs tracked yet.";
 
@@ -65,7 +144,7 @@ export function buildSystemPrompt(ctx: UserContext): string {
       ? ctx.doItems
           .map(
             (d) =>
-              `- [${d.done ? "done" : "todo"}] ${d.title}${d.description ? `: ${d.description}` : ""}${d.dueDate ? ` (due: ${d.dueDate.toISOString().slice(0, 10)})` : ""}`
+              `- [${d.done ? "done" : "todo"}] ${d.title}${d.description ? `: ${d.description}` : ""}${d.dueDate ? ` (due: ${formatDate(d.dueDate)})` : ""}`
           )
           .join("\n")
       : "Do-list is empty.";
@@ -73,18 +152,30 @@ export function buildSystemPrompt(ctx: UserContext): string {
   const notesText =
     ctx.documents.length > 0
       ? ctx.documents
-          .slice(0, 20)
-          .map((d) => `- [${d.type}] ${d.title}: ${d.content.slice(0, 300)}${d.content.length > 300 ? "…" : ""}`)
+          .map(
+            (d) =>
+              `- [${d.type}] ${d.title}: ${truncate(d.content, CONTENT_LIMITS.document)}`
+          )
           .join("\n")
-      : "No notes yet.";
+      : "No notes or documents yet.";
 
   const calendarText =
     ctx.calendarEvents.length > 0
       ? ctx.calendarEvents
-          .map(
-            (e) =>
-              `- ${e.title}${e.description ? `: ${e.description}` : ""} (${e.startAt.toISOString().slice(0, 16)}${e.endAt ? ` → ${e.endAt.toISOString().slice(0, 16)}` : ""})`
-          )
+          .map((e) => {
+            const goal = e.goalId ? goalTitles.get(e.goalId) : null;
+            const action = e.actionId ? actionTitles.get(e.actionId) : null;
+            const when = e.allDay
+              ? formatDate(e.startAt)
+              : `${formatDateTime(e.startAt)}${e.endAt ? ` → ${formatDateTime(e.endAt)}` : ""}`;
+            const links = [
+              goal ? `goal: ${goal}` : null,
+              action ? `action: ${action}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            return `- ${e.title}${e.description ? `: ${e.description}` : ""} (${when}${links ? `; ${links}` : ""})`;
+          })
           .join("\n")
       : "No calendar events.";
 
@@ -93,62 +184,73 @@ export function buildSystemPrompt(ctx: UserContext): string {
       ? ctx.fileUploads
           .map(
             (f) =>
-              `- ${f.filename}: ${f.extractedText.slice(0, 400)}${f.extractedText.length > 400 ? "…" : ""}`
+              `- ${f.filename} (${f.mimeType}): ${truncate(f.extractedText, CONTENT_LIMITS.file)}`
           )
           .join("\n")
-      : "No uploaded documents.";
+      : "No uploaded files.";
 
   const connectionsText =
     ctx.connections.length > 0
       ? ctx.connections
-          .map((c) => `- ${c.sourceType}:${c.sourceId} → ${c.targetType}:${c.targetId}${c.label ? ` (${c.label})` : ""}`)
+          .map((c) => {
+            const source = resolveEntityLabel(c.sourceType, c.sourceId, entityLabels);
+            const target = resolveEntityLabel(c.targetType, c.targetId, entityLabels);
+            return `- ${source} → ${target}${c.label ? ` (${c.label})` : ""}`;
+          })
           .join("\n")
       : "No connections yet.";
 
-  return `You are a personal epistemology assistant helping ${ctx.user.name ?? ctx.user.email} plan, reflect, and succeed.
+  const personalInstructions =
+    aiInstructions?.trim()
+      ? `
 
-You have access to their complete life ontology:
+## Personal instructions
+Follow these preferences in every response:
+${aiInstructions.trim()}`
+      : "";
+
+  return `You are the Dasein assistant helping ${ctx.user.name ?? ctx.user.email} plan, reflect, and stay on track.
+
+You have read-only access to their full workspace:
 
 ## Goals
 ${goalsText}
 
-## Actions / Tasks
+## Actions
 ${actionsText}
 
-## KPIs (key metrics)
+## KPIs
 ${kpisText}
 
-## Do-list (checklist todos)
+## Do-list
 ${doListText}
 
-## Notes
+## Notes & outlines
 ${notesText}
 
-## Calendar (upcoming & scheduled)
+## Calendar
 ${calendarText}
 
-## Uploaded Documents (extracted text)
+## Uploaded files
 ${filesText}
 
-## Knowledge Graph Connections
+## Knowledge graph connections
 ${connectionsText}
 
-Help them:
-- Clarify and refine goals
-- Break goals into actionable steps
-- Track KPIs and suggest course corrections
-- Prioritize and manage their Do-list
-- Connect ideas and spot patterns across notes, documents, and calendar
-- Track progress and suggest next moves
-- Plan around upcoming events and deadlines
-- Think clearly about priorities and trade-offs
+Use this context to:
+- Clarify goals and break them into next steps
+- Track KPIs, Do-list items, and actions together
+- Spot links across notes, files, calendar, and the knowledge graph
+- Suggest priorities based on deadlines and status
 
-Be concise, practical, and thoughtful. Ask clarifying questions when needed.`;
+Be concise, practical, and thoughtful. Ask clarifying questions when needed.${personalInstructions}`;
 }
 
 export async function fetchUserContext(userId: string): Promise<UserContext> {
   const { prisma } = await import("./prisma.js");
   const now = new Date();
+  const calendarFrom = new Date(now.getTime() - 14 * 86400000);
+  const calendarTo = new Date(now.getTime() + 90 * 86400000);
 
   const [user, goals, actions, kpis, doItems, documents, connections, calendarEvents, fileUploads] =
     await Promise.all([
@@ -165,12 +267,13 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           status: true,
           priority: true,
           targetDate: true,
+          parentId: true,
         },
         orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
-        take: 50,
+        take: ENTITY_LIMITS.goals,
       }),
       prisma.action.findMany({
-        where: { userId, status: { not: "DONE" } },
+        where: { userId },
         select: {
           id: true,
           title: true,
@@ -179,8 +282,8 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           dueDate: true,
           goalId: true,
         },
-        orderBy: [{ position: "asc" }, { updatedAt: "desc" }],
-        take: 50,
+        orderBy: [{ status: "asc" }, { position: "asc" }, { updatedAt: "desc" }],
+        take: ENTITY_LIMITS.actions,
       }),
       prisma.kpi.findMany({
         where: { userId },
@@ -194,7 +297,7 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           goalId: true,
         },
         orderBy: [{ position: "asc" }, { updatedAt: "desc" }],
-        take: 30,
+        take: ENTITY_LIMITS.kpis,
       }),
       prisma.doItem.findMany({
         where: { userId },
@@ -206,13 +309,12 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           dueDate: true,
         },
         orderBy: [{ done: "asc" }, { position: "asc" }, { updatedAt: "desc" }],
-        take: 50,
+        take: ENTITY_LIMITS.doItems,
       }),
       prisma.document.findMany({
         where: { userId },
         select: { id: true, title: true, content: true, type: true },
         orderBy: { updatedAt: "desc" },
-        take: 30,
       }),
       prisma.connection.findMany({
         where: { userId },
@@ -224,10 +326,13 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           targetId: true,
           label: true,
         },
-        take: 100,
+        take: ENTITY_LIMITS.connections,
       }),
       prisma.calendarEvent.findMany({
-        where: { userId, startAt: { gte: new Date(now.getTime() - 7 * 86400000) } },
+        where: {
+          userId,
+          startAt: { gte: calendarFrom, lte: calendarTo },
+        },
         select: {
           id: true,
           title: true,
@@ -235,15 +340,16 @@ export async function fetchUserContext(userId: string): Promise<UserContext> {
           startAt: true,
           endAt: true,
           allDay: true,
+          goalId: true,
+          actionId: true,
         },
         orderBy: { startAt: "asc" },
-        take: 30,
+        take: ENTITY_LIMITS.calendarEvents,
       }),
       prisma.fileUpload.findMany({
         where: { userId },
         select: { id: true, filename: true, extractedText: true, mimeType: true },
         orderBy: { updatedAt: "desc" },
-        take: 20,
       }),
     ]);
 

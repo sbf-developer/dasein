@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Target, CheckSquare, FileText, Sparkles, Calendar, Gauge, ListTodo } from "lucide-react";
+import { ChevronRight, SlidersHorizontal } from "lucide-react";
 import { api, type Goal, type Action, type Document, type CalendarEvent, type Kpi, type DoItem } from "@/lib/api";
+import type { OverviewLayout, OverviewSectionId } from "@/lib/overview";
+import { OverviewCustomize } from "@/components/OverviewCustomize";
 
 function formatEventDate(iso: string, allDay: boolean) {
   const d = new Date(iso);
@@ -14,6 +16,27 @@ function kpiMeta(kpi: Kpi) {
   return `${pct}%`;
 }
 
+const DEFAULT_LAYOUT: OverviewLayout = {
+  sections: [
+    { id: "ask-ai", visible: true },
+    { id: "do-list", visible: true },
+    { id: "kpis", visible: true },
+    { id: "upcoming", visible: true },
+    { id: "goals", visible: true },
+    { id: "actions", visible: true },
+    { id: "notes", visible: true },
+  ],
+};
+
+type SectionItem = { id: string; title: string; meta?: string; href?: string };
+
+type SectionData = {
+  title: string;
+  link: string;
+  empty: string;
+  items: SectionItem[];
+};
+
 export function HomePage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
@@ -21,6 +44,11 @@ export function HomePage() {
   const [doItems, setDoItems] = useState<DoItem[]>([]);
   const [notes, setNotes] = useState<Document[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [layout, setLayout] = useState<OverviewLayout>(DEFAULT_LAYOUT);
+  const [customizing, setCustomizing] = useState(false);
+  const [savingLayout, setSavingLayout] = useState(false);
+  const [layoutError, setLayoutError] = useState<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     Promise.all([
@@ -38,137 +66,202 @@ export function HomePage() {
       setNotes(n.slice(0, 5));
       setEvents(e.slice(0, 5));
     });
+
+    api.settings
+      .getOverview()
+      .then(setLayout)
+      .catch(() => setLayout(DEFAULT_LAYOUT));
   }, []);
 
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
-      <h2 className="text-xl font-semibold tracking-tight">Overview</h2>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Your personal knowledge and progress at a glance.
-      </p>
+  const persistLayout = useCallback((next: OverviewLayout) => {
+    setLayout(next);
+    setLayoutError(null);
+    clearTimeout(saveTimer.current);
+    setSavingLayout(true);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const saved = await api.settings.updateOverview(next);
+        setLayout(saved);
+      } catch (err) {
+        setLayoutError(err instanceof Error ? err.message : "Could not save layout");
+      } finally {
+        setSavingLayout(false);
+      }
+    }, 400);
+  }, []);
 
-      <div className="mt-8 grid gap-6">
-        <Section
-          title="Do-list"
-          icon={<ListTodo size={16} />}
-          link="/do-list"
-          empty="Nothing to do"
-          items={doItems.map((d) => ({ id: d.id, title: d.title }))}
-        />
-        <Section
-          title="KPIs"
-          icon={<Gauge size={16} />}
-          link="/kpis"
-          empty="No KPIs tracked"
-          items={kpis.map((k) => ({ id: k.id, title: k.title, meta: kpiMeta(k) }))}
-        />
-        <Section
-          title="Upcoming"
-          icon={<Calendar size={16} />}
-          link="/calendar"
-          empty="Nothing scheduled"
-          items={events.map((e) => ({
-            id: e.id,
-            title: e.title,
-            meta: formatEventDate(e.startAt, e.allDay),
-          }))}
-        />
-        <Section
-          title="Active goals"
-          icon={<Target size={16} />}
-          link="/goals"
-          empty="No active goals yet"
-          items={goals.map((g) => ({ id: g.id, title: g.title, meta: g.description || undefined }))}
-        />
-        <Section
-          title="Next actions"
-          icon={<CheckSquare size={16} />}
-          link="/actions"
-          empty="No pending actions"
-          items={actions.map((a) => ({
-            id: a.id,
-            title: a.title,
-            meta: a.status.replace("_", " "),
-          }))}
-        />
-        <Section
-          title="Recent notes"
-          icon={<FileText size={16} />}
-          link="/notes"
-          empty="No notes yet"
-          items={notes.map((n) => ({
-            id: n.id,
-            title: n.title,
-            meta: n.type,
-            href: `/notes/${n.id}`,
-          }))}
-        />
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+
+  const sectionData = useMemo(
+    (): Record<OverviewSectionId, SectionData> => ({
+      "ask-ai": { title: "Ask AI", link: "/ai", empty: "", items: [] },
+      "do-list": {
+        title: "Do-list",
+        link: "/do-list",
+        empty: "Nothing to do",
+        items: doItems.map((d) => ({ id: d.id, title: d.title })),
+      },
+      kpis: {
+        title: "KPIs",
+        link: "/kpis",
+        empty: "No KPIs tracked",
+        items: kpis.map((k) => ({ id: k.id, title: k.title, meta: kpiMeta(k) })),
+      },
+      upcoming: {
+        title: "Upcoming",
+        link: "/calendar",
+        empty: "Nothing scheduled",
+        items: events.map((e) => ({
+          id: e.id,
+          title: e.title,
+          meta: formatEventDate(e.startAt, e.allDay),
+        })),
+      },
+      goals: {
+        title: "Goals",
+        link: "/goals",
+        empty: "No active goals",
+        items: goals.map((g) => ({ id: g.id, title: g.title })),
+      },
+      actions: {
+        title: "Actions",
+        link: "/actions",
+        empty: "No pending actions",
+        items: actions.map((a) => ({
+          id: a.id,
+          title: a.title,
+          meta: a.status.replace("_", " ").toLowerCase(),
+        })),
+      },
+      notes: {
+        title: "Notes",
+        link: "/notes",
+        empty: "No notes yet",
+        items: notes.map((n) => ({
+          id: n.id,
+          title: n.title,
+          meta: n.type.toLowerCase(),
+          href: `/notes/${n.id}`,
+        })),
+      },
+    }),
+    [doItems, kpis, events, goals, actions, notes]
+  );
+
+  const visibleSections = layout.sections.filter((s) => s.visible);
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Overview</h2>
+        <button
+          type="button"
+          onClick={() => setCustomizing((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+            customizing
+              ? "bg-[var(--color-text)] text-white"
+              : "text-[var(--color-text-tertiary)] hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+          }`}
+        >
+          <SlidersHorizontal size={14} strokeWidth={1.75} />
+          {customizing ? "Done" : "Customize"}
+        </button>
       </div>
 
-      <Link
-        to="/ai"
-        className="mt-8 flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-4 transition-colors hover:border-[var(--color-accent)]"
-      >
-        <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
-          <Sparkles size={18} />
+      {customizing && (
+        <div className="mb-8">
+          {layoutError && (
+            <p className="mb-2 text-xs text-red-600">{layoutError}</p>
+          )}
+          <OverviewCustomize
+            layout={layout}
+            onChange={persistLayout}
+            onReset={() => persistLayout(DEFAULT_LAYOUT)}
+            saving={savingLayout}
+          />
         </div>
-        <div>
-          <p className="text-sm font-medium">Ask AI</p>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Context-aware help across your goals, KPIs, Do-list, calendar, and notes.
-          </p>
-        </div>
-      </Link>
+      )}
+
+      <div className="space-y-10">
+        {visibleSections.map((section) => {
+          if (section.id === "ask-ai") {
+            return (
+              <Link
+                key={section.id}
+                to="/ai"
+                className="group -mx-2 flex items-center justify-between rounded-xl px-2 py-3 transition-colors hover:bg-[var(--color-border-subtle)]"
+              >
+                <span className="text-sm font-medium text-[var(--color-text)]">Ask AI</span>
+                <ChevronRight
+                  size={15}
+                  strokeWidth={1.75}
+                  className="text-[var(--color-text-tertiary)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-text-secondary)]"
+                />
+              </Link>
+            );
+          }
+
+          const data = sectionData[section.id as OverviewSectionId];
+          if (!data) return null;
+          return (
+            <Section
+              key={section.id}
+              title={data.title}
+              link={data.link}
+              empty={data.empty}
+              items={data.items}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function Section({
   title,
-  icon,
   link,
   empty,
   items,
 }: {
   title: string;
-  icon: React.ReactNode;
   link: string;
   empty: string;
-  items: { id: string; title: string; meta?: string; href?: string }[];
+  items: SectionItem[];
 }) {
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)]">
-          {icon}
+      <div className="mb-2 flex items-baseline justify-between gap-4">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
           {title}
-        </div>
-        <Link to={link} className="text-xs text-[var(--color-accent)] hover:underline">
-          View all
+        </h3>
+        <Link
+          to={link}
+          className="shrink-0 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text)]"
+        >
+          All
         </Link>
       </div>
-      <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)]">
-        {items.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-[var(--color-text-tertiary)]">{empty}</p>
-        ) : (
-          items.map((item, i) => (
-            <Link
-              key={item.id}
-              to={item.href ?? link}
-              className={`flex flex-col gap-1 px-4 py-3 text-sm transition-colors hover:bg-[var(--color-border-subtle)] sm:flex-row sm:items-center sm:justify-between ${
-                i > 0 ? "border-t border-[var(--color-border-subtle)]" : ""
-              }`}
-            >
-              <span className="truncate font-medium">{item.title}</span>
-              {item.meta && (
-                <span className="ml-3 shrink-0 text-xs text-[var(--color-text-tertiary)]">
-                  {item.meta}
-                </span>
-              )}
-            </Link>
-          ))
-        )}
-      </div>
+
+      {items.length === 0 ? (
+        <p className="px-1 py-1 text-sm text-[var(--color-text-tertiary)]">{empty}</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                to={item.href ?? link}
+                className="group flex items-center justify-between gap-4 rounded-lg px-1 py-2 transition-colors hover:bg-[var(--color-border-subtle)]"
+              >
+                <span className="min-w-0 truncate text-sm text-[var(--color-text)]">{item.title}</span>
+                {item.meta && (
+                  <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{item.meta}</span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

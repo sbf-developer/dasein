@@ -80,10 +80,12 @@ export function Sidebar() {
 
   const content = (
     <>
-      <div className={`flex items-center gap-2 px-3 pt-4 ${collapsed && !isMobile ? "flex-col pb-2" : "pb-3"}`}>
+      <div className={`flex items-center gap-2 px-4 pt-5 ${collapsed && !isMobile ? "flex-col pb-2" : "pb-4"}`}>
         {(!collapsed || isMobile) && (
-          <div className="min-w-0 flex-1 px-1">
-            <h1 className="truncate text-base font-semibold tracking-tight">Dasein</h1>
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-medium tracking-[0.08em] text-[var(--color-text-secondary)]">
+              Dasein
+            </span>
           </div>
         )}
         {isMobile ? (

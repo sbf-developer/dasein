@@ -85,5 +85,10 @@ textarea {
 
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--color-accent) !important;
+  stroke-width: 2.5px !important;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: #888 !important;
   stroke-width: 2px !important;
 }

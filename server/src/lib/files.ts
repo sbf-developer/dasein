@@ -1,7 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const TEXT_EXTENSIONS = new Set([
   ".txt", ".md", ".markdown", ".json", ".csv", ".html", ".xml", ".log", ".yml", ".yaml",
 ]);
@@ -16,10 +15,7 @@ export async function ensureUploadDir(userId: string) {
   return dir;
 }
 
-export function isAllowedFile(filename: string, mimeType: string, size: number) {
-  if (size > MAX_FILE_SIZE) {
-    return { ok: false as const, error: "File too large (max 10MB)" };
-  }
+export function isAllowedFile(filename: string, mimeType: string) {
   const ext = path.extname(filename).toLowerCase();
   const textMime =
     mimeType.startsWith("text/") ||
@@ -35,10 +31,8 @@ export function isAllowedFile(filename: string, mimeType: string, size: number) 
   return { ok: true as const };
 }
 
-export async function extractText(buffer: Buffer, filename: string): Promise<string> {
-  const text = buffer.toString("utf-8");
-  const maxChars = 50000;
-  return text.slice(0, maxChars);
+export async function extractText(buffer: Buffer): Promise<string> {
+  return buffer.toString("utf-8");
 }
 
 export async function saveUploadedFile(

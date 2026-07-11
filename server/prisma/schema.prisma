@@ -12,6 +12,8 @@ model User {
   email     String   @unique
   name      String?
   image     String?
+  overviewLayout Json?
+  aiInstructions String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

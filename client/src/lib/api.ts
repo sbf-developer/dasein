@@ -1,5 +1,7 @@
 const API_BASE = "/api";
 
+import type { OverviewLayout } from "./overview";
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const isFormData = options?.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
@@ -142,6 +144,20 @@ export const api = {
       request<{ ok: boolean }>(`/do-list/${id}`, { method: "DELETE" }),
   },
   search: (q: string) => request<{ results: SearchResult[] }>(`/search?q=${encodeURIComponent(q)}`),
+  settings: {
+    getOverview: () => request<OverviewLayout>("/settings/overview"),
+    updateOverview: (layout: OverviewLayout) =>
+      request<OverviewLayout>("/settings/overview", {
+        method: "PATCH",
+        body: JSON.stringify(layout),
+      }),
+    getAi: () => request<{ instructions: string }>("/settings/ai"),
+    updateAi: (instructions: string) =>
+      request<{ instructions: string }>("/settings/ai", {
+        method: "PATCH",
+        body: JSON.stringify({ instructions }),
+      }),
+  },
 };
 
 export type User = {

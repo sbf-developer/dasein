@@ -14,6 +14,7 @@ import {
   MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Trash2 } from "lucide-react";
 import { api, type GraphData } from "@/lib/api";
 import { GraphNode } from "@/components/GraphNode";
 import { Button } from "@/components/ui/Button";
@@ -54,6 +55,7 @@ function graphToFlow(data: GraphData): { nodes: Node[]; edges: Edge[] } {
     style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
     labelStyle: { fontSize: 11, fill: "#9a9a9a" },
     deletable: true,
+    interactionWidth: 24,
   }));
 
   return { nodes, edges };
@@ -65,6 +67,7 @@ export function GraphPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const fitOnce = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -143,6 +146,7 @@ export function GraphPage() {
               markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
               style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
               deletable: true,
+              interactionWidth: 24,
             },
             eds
           )
@@ -156,6 +160,7 @@ export function GraphPage() {
 
   const onEdgesDelete = useCallback(
     async (deleted: Edge[]) => {
+      setSelectedEdgeId(null);
       const results = await Promise.allSettled(
         deleted.map((e) => api.connections.delete(e.id))
       );
@@ -167,6 +172,23 @@ export function GraphPage() {
     },
     [load]
   );
+
+  const removeSelectedEdge = useCallback(async () => {
+    if (!selectedEdgeId) return;
+    const edge = edges.find((e) => e.id === selectedEdgeId);
+    if (!edge) return;
+
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId));
+    setSelectedEdgeId(null);
+    setConnectError(null);
+
+    try {
+      await api.connections.delete(selectedEdgeId);
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : "Could not delete connection");
+      load();
+    }
+  }, [selectedEdgeId, edges, setEdges, load]);
 
   if (loading) {
     return (
@@ -193,13 +215,21 @@ export function GraphPage() {
         <div className="min-w-0">
           <h2 className="text-base font-semibold tracking-tight sm:text-lg">Knowledge Graph</h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            Drag nodes to arrange · drag from a dot to connect · select an edge and press Delete
+            Click a line to select it, then Remove — or press Delete / Backspace
           </p>
           {connectError && <p className="mt-1 text-xs text-red-600">{connectError}</p>}
         </div>
-        <Button variant="secondary" className="w-full sm:w-auto" onClick={load}>
-          Refresh
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          {selectedEdgeId && (
+            <Button variant="danger" className="w-full sm:w-auto" onClick={removeSelectedEdge}>
+              <Trash2 size={15} />
+              Remove line
+            </Button>
+          )}
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={load}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1">
@@ -217,6 +247,10 @@ export function GraphPage() {
             onConnect={onConnect}
             onNodeDragStop={onNodeDragStop}
             onEdgesDelete={onEdgesDelete}
+            onSelectionChange={({ edges: selected }) => {
+              setSelectedEdgeId(selected[0]?.id ?? null);
+            }}
+            onPaneClick={() => setSelectedEdgeId(null)}
             connectionMode={ConnectionMode.Loose}
             nodesDraggable
             nodesConnectable
@@ -230,6 +264,8 @@ export function GraphPage() {
             defaultEdgeOptions={{
               markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
               style: { stroke: "#b0b0b0", strokeWidth: 1.5 },
+              interactionWidth: 24,
+              deletable: true,
             }}
             connectionLineStyle={{ stroke: "#0071e3", strokeWidth: 2 }}
             proOptions={{ hideAttribution: true }}

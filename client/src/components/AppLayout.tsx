@@ -9,18 +9,18 @@ function LayoutShell() {
 
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 md:hidden">
+      <header className="relative flex h-11 shrink-0 items-center justify-center px-3 md:hidden">
         <button
           type="button"
           onClick={openMobile}
           aria-label="Open menu"
-          className="rounded-[var(--radius-sm)] p-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-border-subtle)]"
+          className="absolute left-2 rounded-full p-2 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
         >
-          <Menu size={20} strokeWidth={1.75} />
+          <Menu size={18} strokeWidth={1.75} />
         </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold tracking-tight">Dasein</h1>
-        </div>
+        <span className="text-sm font-medium tracking-[0.08em] text-[var(--color-text-secondary)]">
+          Dasein
+        </span>
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

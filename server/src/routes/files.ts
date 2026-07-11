@@ -63,10 +63,10 @@ fileRoutes.post("/", async (c) => {
   const filename = "name" in blob && blob.name ? blob.name : "upload.txt";
   const mimeType = blob.type || "text/plain";
   const buffer = Buffer.from(await blob.arrayBuffer());
-  const check = isAllowedFile(filename, mimeType, buffer.length);
+  const check = isAllowedFile(filename, mimeType);
   if (!check.ok) return c.json({ error: check.error }, 400);
 
-  const extractedText = await extractText(buffer, filename);
+  const extractedText = await extractText(buffer);
 
   const record = await prisma.fileUpload.create({
     data: {
