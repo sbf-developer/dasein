@@ -74,6 +74,7 @@ export function AiPage() {
   const sendRequestRef = useRef(0);
   const threadsLoadGen = useRef(0);
   const instructionsSaveGen = useRef(0);
+  const instructionsDirty = useRef(false);
   const hasAutoOpened = useRef(false);
   const wantsNewChat = useRef(false);
   const instructionsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -87,8 +88,12 @@ export function AiPage() {
   useEffect(() => {
     api.settings
       .getAi()
-      .then(({ instructions }) => setAiInstructions(instructions))
-      .catch(() => setAiInstructions(""));
+      .then(({ instructions }) => {
+        if (!instructionsDirty.current) setAiInstructions(instructions);
+      })
+      .catch(() => {
+        if (!instructionsDirty.current) setAiInstructions("");
+      });
   }, []);
 
   useEffect(() => {
@@ -96,6 +101,7 @@ export function AiPage() {
   }, []);
 
   const persistInstructions = useCallback((value: string) => {
+    instructionsDirty.current = true;
     setAiInstructions(value);
     setInstructionsError(null);
     clearTimeout(instructionsSaveTimer.current);
@@ -319,7 +325,10 @@ export function AiPage() {
         threadAtSend,
         getUserLocalContext()
       );
-      if (requestId !== sendRequestRef.current) return;
+      if (requestId !== sendRequestRef.current) {
+        setMessages((m) => m.filter((x) => !x.id.startsWith("temp-")));
+        return;
+      }
       setThreadId(tid);
       setMessages((m) => [
         ...m.filter((x) => !x.id.startsWith("temp-")),
@@ -328,9 +337,18 @@ export function AiPage() {
       ]);
       loadThreads(threadSearch || undefined, { silent: true });
     } catch (err) {
-      if (requestId !== sendRequestRef.current) return;
+      if (requestId !== sendRequestRef.current) {
+        setMessages((m) => m.filter((x) => !x.id.startsWith("temp-")));
+        return;
+      }
       setMessages((m) => [
-        ...m,
+        ...m.filter((x) => !x.id.startsWith("temp-")),
+        {
+          id: `local-${Date.now()}`,
+          role: "USER",
+          content: userMsg,
+          createdAt: new Date().toISOString(),
+        },
         {
           id: `err-${Date.now()}`,
           role: "ASSISTANT",

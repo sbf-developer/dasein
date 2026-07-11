@@ -107,15 +107,23 @@ authRoutes.get("/google/callback", async (c) => {
   let user = await prisma.user.findUnique({ where: { email: profile.email } });
   let isNewUser = false;
   if (!user) {
-    isNewUser = true;
-    user = await prisma.user.create({
-      data: {
-        email: profile.email,
-        name: profile.name,
-        image: profile.picture,
-        aiInstructions: DEFAULT_AI_INSTRUCTIONS,
-      },
-    });
+    try {
+      user = await prisma.user.create({
+        data: {
+          email: profile.email,
+          name: profile.name,
+          image: profile.picture,
+          aiInstructions: DEFAULT_AI_INSTRUCTIONS,
+        },
+      });
+      isNewUser = true;
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "P2002") {
+        user = await prisma.user.findUnique({ where: { email: profile.email } });
+      }
+      if (!user) throw err;
+    }
   } else {
     user = await prisma.user.update({
       where: { id: user.id },

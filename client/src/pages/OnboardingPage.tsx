@@ -11,7 +11,7 @@ const STEPS = ["welcome", "goals", "kpis", "todos", "done"] as const;
 type KpiDraft = { title: string; target: string };
 
 export function OnboardingPage() {
-  const { user, loading, refresh } = useAuth();
+  const { user, loading, patchUser } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [finishing, setFinishing] = useState(false);
@@ -45,8 +45,8 @@ export function OnboardingPage() {
     setFinishing(true);
     setError(null);
     try {
-      await api.settings.completeOnboarding();
-      await refresh();
+      const { onboardingCompletedAt } = await api.settings.completeOnboarding();
+      patchUser({ onboardingCompletedAt });
       navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not finish setup");

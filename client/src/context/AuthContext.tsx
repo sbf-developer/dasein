@@ -6,6 +6,7 @@ type AuthContextType = {
   loading: boolean;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  patchUser: (patch: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -19,8 +20,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user } = await api.auth.me();
       setUser(user);
     } catch {
-      setUser(null);
+      // Keep existing session on transient failures.
     }
+  };
+
+  const patchUser = (patch: Partial<User>) => {
+    setUser((current) => (current ? { ...current, ...patch } : current));
   };
 
   useEffect(() => {
@@ -33,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, logout, refresh, patchUser }}>
       {children}
     </AuthContext.Provider>
   );
