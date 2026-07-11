@@ -27,7 +27,7 @@ doListRoutes.get("/", async (c) => {
       userId,
       ...(done === "true" ? { done: true } : done === "false" ? { done: false } : {}),
     },
-    orderBy: [{ done: "asc" }, { position: "asc" }, { updatedAt: "desc" }],
+    orderBy: [{ done: "asc" }, { completedAt: "desc" }, { position: "asc" }],
   });
   return c.json(items);
 });
@@ -78,6 +78,7 @@ doListRoutes.post("/", async (c) => {
       title: body.title,
       description: body.description ?? "",
       done,
+      completedAt: done ? new Date() : null,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
       position: body.position ?? (max._max.position ?? -1) + 1,
     },
@@ -94,12 +95,24 @@ doListRoutes.patch("/:id", async (c) => {
   if (!existing) return c.json({ error: "Not found" }, 404);
 
   const item = await prisma.$transaction(async (tx) => {
+    const nextDone = body.done ?? existing.done;
+    const completedAt =
+      body.done === undefined
+        ? undefined
+        : nextDone
+          ? existing.completedAt ?? new Date()
+          : null;
+
     const updated = await tx.doItem.update({
       where: { id: existing.id },
       data: {
-        ...body,
+        title: body.title,
+        description: body.description,
+        done: body.done,
+        completedAt,
         dueDate:
           body.dueDate === null ? null : body.dueDate ? new Date(body.dueDate) : undefined,
+        position: body.position,
       },
     });
 

@@ -9,6 +9,7 @@ import {
 } from "../lib/overview-layout.js";
 import {
   EXPORT_SECTIONS,
+  buildExportPdf,
   buildExportZip,
   getExportPreview,
 } from "../lib/export.js";
@@ -99,6 +100,20 @@ settingsRoutes.post("/export", async (c) => {
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(buffer.length),
+    },
+  });
+});
+
+settingsRoutes.post("/export/pdf", async (c) => {
+  const userId = c.get("userId");
+  const body = exportSchema.parse(await c.req.json());
+  const { buffer, filename } = await buildExportPdf(userId, body.sections);
+
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Content-Length": String(buffer.length),
     },

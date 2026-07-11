@@ -6,6 +6,48 @@ import { Input } from "@/components/ui/Input";
 import { ReorderGrip, reorderRowClass } from "@/components/ReorderGrip";
 import { useDragReorder } from "@/hooks/useDragReorder";
 
+function toDayKeyFromDate(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toDayKey(iso: string) {
+  return toDayKeyFromDate(new Date(iso));
+}
+
+function formatCompletedDay(dayKey: string) {
+  const d = new Date(`${dayKey}T12:00:00`);
+  const todayKey = toDayKeyFromDate(new Date());
+  if (dayKey === todayKey) return "Today";
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (dayKey === toDayKeyFromDate(yesterday)) return "Yesterday";
+
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}),
+  });
+}
+
+function groupDoneByDay(items: DoItem[]) {
+  const map = new Map<string, DoItem[]>();
+  for (const item of items) {
+    const key = toDayKey(item.completedAt ?? item.updatedAt);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+
+  return [...map.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([dayKey, groupItems]) => ({
+      dayKey,
+      label: formatCompletedDay(dayKey),
+      items: groupItems.sort((a, b) => a.position - b.position),
+    }));
+}
+
 export function DoListPage() {
   const [items, setItems] = useState<DoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,12 +86,18 @@ export function DoListPage() {
   };
 
   const toggle = async (id: string, done: boolean) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, done: !done } : i)));
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id
+          ? { ...i, done: !done, completedAt: !done ? new Date().toISOString() : null }
+          : i
+      )
+    );
     try {
       await api.doList.update(id, { done: !done });
       await load();
     } catch {
-      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, done } : i)));
+      await load();
       setError("Could not update item");
     }
   };
@@ -91,7 +139,7 @@ export function DoListPage() {
   };
 
   const active = items.filter((i) => !i.done);
-  const done = items.filter((i) => i.done);
+  const doneGroups = groupDoneByDay(items.filter((i) => i.done));
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
@@ -130,16 +178,24 @@ export function DoListPage() {
             onSaveTitle={saveTitle}
             onReorder={(ids) => reorder(ids, false)}
           />
-          {done.length > 0 && (
-            <ItemSection
-              title="Done"
-              items={done}
-              onToggle={toggle}
-              onRemove={remove}
-              onSaveTitle={saveTitle}
-              onReorder={(ids) => reorder(ids, true)}
-              muted
-            />
+          {doneGroups.length > 0 && (
+            <div className="mt-6 opacity-60">
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Done
+              </h3>
+              <div className="space-y-5">
+                {doneGroups.map((group) => (
+                  <DoneDayGroup
+                    key={group.dayKey}
+                    label={group.label}
+                    items={group.items}
+                    onToggle={toggle}
+                    onRemove={remove}
+                    onSaveTitle={saveTitle}
+                  />
+                ))}
+              </div>
+            </div>
           )}
           {items.length === 0 && (
             <div className="mt-6 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] py-16 text-center">
@@ -155,6 +211,33 @@ export function DoListPage() {
           <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-[var(--color-border)] border-t-[var(--color-text-tertiary)]" />
         </div>
       )}
+    </div>
+  );
+}
+
+function DoneDayGroup({
+  label,
+  items,
+  onToggle,
+  onRemove,
+  onSaveTitle,
+}: {
+  label: string;
+  items: DoItem[];
+  onToggle: (id: string, done: boolean) => void;
+  onRemove: (id: string) => void;
+  onSaveTitle: (id: string, title: string) => void | Promise<void>;
+}) {
+  return (
+    <div>
+      <h4 className="mb-2 text-sm font-medium text-[var(--color-text-secondary)]">{label}</h4>
+      <ItemList
+        items={items}
+        onToggle={onToggle}
+        onRemove={onRemove}
+        onSaveTitle={onSaveTitle}
+        draggable={false}
+      />
     </div>
   );
 }
@@ -177,6 +260,41 @@ function ItemSection({
   muted?: boolean;
 }) {
   const { displayItems, rowProps } = useDragReorder(items, onReorder);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className={`mt-6 ${muted ? "opacity-60" : ""}`}>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+        {title}
+      </h3>
+      <ItemList
+        items={displayItems}
+        onToggle={onToggle}
+        onRemove={onRemove}
+        onSaveTitle={onSaveTitle}
+        draggable
+        rowProps={rowProps}
+      />
+    </div>
+  );
+}
+
+function ItemList({
+  items,
+  onToggle,
+  onRemove,
+  onSaveTitle,
+  draggable,
+  rowProps,
+}: {
+  items: DoItem[];
+  onToggle: (id: string, done: boolean) => void;
+  onRemove: (id: string) => void;
+  onSaveTitle: (id: string, title: string) => void | Promise<void>;
+  draggable: boolean;
+  rowProps?: (id: string) => ReturnType<ReturnType<typeof useDragReorder>["rowProps"]>;
+}) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -204,26 +322,23 @@ function ItemSection({
     }
   };
 
-  if (items.length === 0) return null;
-
   return (
-    <div className={`mt-6 ${muted ? "opacity-60" : ""}`}>
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-        {title}
-      </h3>
-      <div className="space-y-1.5">
-        {displayItems.map((item) => {
-          const drag = rowProps(item.id);
-          return (
-            <div
-              key={item.id}
-              onDragEnter={drag.onDragEnter}
-              onDragLeave={drag.onDragLeave}
-              onDragOver={drag.onDragOver}
-              onDrop={drag.onDrop}
-              onDragEnd={drag.onDragEnd}
-              className={`group flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-3 transition-colors sm:gap-3 sm:px-4 ${reorderRowClass(drag["data-drag-over"])}`}
-            >
+    <div className="space-y-1.5">
+      {items.map((item) => {
+        const drag = draggable && rowProps ? rowProps(item.id) : null;
+        return (
+          <div
+            key={item.id}
+            onDragEnter={drag?.onDragEnter}
+            onDragLeave={drag?.onDragLeave}
+            onDragOver={drag?.onDragOver}
+            onDrop={drag?.onDrop}
+            onDragEnd={drag?.onDragEnd}
+            className={`group flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-3 transition-colors sm:gap-3 sm:px-4 ${
+              drag ? reorderRowClass(drag["data-drag-over"]) : ""
+            }`}
+          >
+            {draggable && drag ? (
               <div
                 draggable
                 onDragStart={drag.onDragStart}
@@ -232,6 +347,9 @@ function ItemSection({
               >
                 <ReorderGrip />
               </div>
+            ) : (
+              <div className="w-4 shrink-0" />
+            )}
               <button
                 type="button"
                 onClick={() => onToggle(item.id, item.done)}
@@ -301,7 +419,6 @@ function ItemSection({
             </div>
           );
         })}
-      </div>
     </div>
   );
 }

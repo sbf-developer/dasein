@@ -189,33 +189,43 @@ export const api = {
         method: "POST",
       }),
     getExportPreview: () => request<ExportPreview>("/settings/export/preview"),
-    downloadExport: async (sections: ExportSection[]) => {
-      const res = await fetch(`${API_BASE}/settings/export`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sections }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error((err as { error?: string }).error ?? "Export failed");
-      }
-
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? `dasein-export-${new Date().toISOString().slice(0, 10)}.zip`;
-
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    },
+    downloadExport: (sections: ExportSection[]) =>
+      downloadExportFile("/settings/export", sections, "zip"),
+    downloadExportPdf: (sections: ExportSection[]) =>
+      downloadExportFile("/settings/export/pdf", sections, "pdf"),
   },
 };
+
+async function downloadExportFile(
+  path: string,
+  sections: ExportSection[],
+  fallbackExt: "zip" | "pdf"
+) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sections }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error ?? "Export failed");
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename =
+    match?.[1] ?? `dasein-export-${new Date().toISOString().slice(0, 10)}.${fallbackExt}`;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export type User = {
   id: string;
@@ -277,6 +287,7 @@ export type DoItem = {
   description: string;
   done: boolean;
   dueDate: string | null;
+  completedAt: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;

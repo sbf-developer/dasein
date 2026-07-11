@@ -11,6 +11,7 @@ import {
   MessageSquare,
   User,
   Check,
+  FileType,
 } from "lucide-react";
 import { api, type ExportSection, type ExportPreview } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -91,7 +92,7 @@ export function SettingsPage() {
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<ExportSection>>(new Set(ALL_SECTIONS));
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"zip" | "pdf" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,16 +134,29 @@ export function SettingsPage() {
     setExportError(null);
   };
 
-  const download = async () => {
+  const downloadZip = async () => {
     if (noneSelected) return;
-    setExporting(true);
+    setExporting("zip");
     setExportError(null);
     try {
       await api.settings.downloadExport([...selected]);
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "Export failed");
     } finally {
-      setExporting(false);
+      setExporting(null);
+    }
+  };
+
+  const downloadPdf = async () => {
+    if (noneSelected) return;
+    setExporting("pdf");
+    setExportError(null);
+    try {
+      await api.settings.downloadExportPdf([...selected]);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "PDF export failed");
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -164,8 +178,8 @@ export function SettingsPage() {
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-medium text-[var(--color-text)]">Download your data</h2>
               <p className="mt-1 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                Export everything about you in Dasein as a ZIP file. JSON for full data, Markdown
-                for notes and chats, plus your uploaded files.
+                Choose what to include, then download as a ZIP (full data + files) or a combined
+                PDF (readable summary).
               </p>
             </div>
           </div>
@@ -209,7 +223,7 @@ export function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => toggle(id)}
-                    disabled={loadingPreview || exporting}
+                    disabled={loadingPreview || !!exporting}
                     className={`flex w-full items-center gap-3 rounded-[var(--radius-sm)] px-3 py-3 text-left transition-colors ${
                       isOn
                         ? "bg-white shadow-sm"
@@ -253,17 +267,29 @@ export function SettingsPage() {
             <p className="mb-3 text-xs text-[var(--color-text-tertiary)]">{selectedSummary}</p>
           )}
           {exportError && <p className="mb-3 text-sm text-red-600">{exportError}</p>}
-          <Button
-            variant="subtle"
-            onClick={download}
-            disabled={exporting || noneSelected || loadingPreview}
-            className="w-full sm:w-auto"
-          >
-            <Download size={15} strokeWidth={1.75} />
-            {exporting ? "Preparing download…" : "Download ZIP"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="subtle"
+              onClick={downloadZip}
+              disabled={!!exporting || noneSelected || loadingPreview}
+              className="w-full sm:w-auto"
+            >
+              <Download size={15} strokeWidth={1.75} />
+              {exporting === "zip" ? "Preparing ZIP…" : "Download ZIP"}
+            </Button>
+            <Button
+              variant="subtle"
+              onClick={downloadPdf}
+              disabled={!!exporting || noneSelected || loadingPreview}
+              className="w-full sm:w-auto"
+            >
+              <FileType size={15} strokeWidth={1.75} />
+              {exporting === "pdf" ? "Preparing PDF…" : "Download PDF"}
+            </Button>
+          </div>
           <p className="mt-3 text-xs leading-relaxed text-[var(--color-text-tertiary)]">
-            Generated on demand. Nothing is stored after download.
+            ZIP includes JSON, Markdown, and original files. PDF combines selected sections into one
+            readable document. Generated on demand — nothing is stored after download.
           </p>
         </div>
       </section>
