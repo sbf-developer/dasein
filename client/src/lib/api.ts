@@ -187,6 +187,32 @@ export const api = {
       request<{ onboardingCompletedAt: string | null }>("/settings/onboarding/complete", {
         method: "POST",
       }),
+    getExportPreview: () => request<ExportPreview>("/settings/export/preview"),
+    downloadExport: async (sections: ExportSection[]) => {
+      const res = await fetch(`${API_BASE}/settings/export`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sections }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error((err as { error?: string }).error ?? "Export failed");
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `dasein-export-${new Date().toISOString().slice(0, 10)}.zip`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    },
   },
 };
 
@@ -331,4 +357,19 @@ export type SearchResult = {
   title: string;
   subtitle: string;
   updatedAt: string;
+};
+
+export type ExportSection =
+  | "profile"
+  | "notes"
+  | "goals"
+  | "kpis"
+  | "do-list"
+  | "calendar"
+  | "graph"
+  | "uploads"
+  | "ai-chats";
+
+export type ExportPreview = {
+  sections: Record<ExportSection, number>;
 };

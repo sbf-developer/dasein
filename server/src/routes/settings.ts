@@ -7,6 +7,11 @@ import {
   normalizeOverviewLayout,
   overviewLayoutSchema,
 } from "../lib/overview-layout.js";
+import {
+  EXPORT_SECTIONS,
+  buildExportZip,
+  getExportPreview,
+} from "../lib/export.js";
 
 type Variables = { userId: string };
 
@@ -71,5 +76,31 @@ settingsRoutes.post("/onboarding/complete", async (c) => {
   });
   return c.json({
     onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+  });
+});
+
+const exportSchema = z.object({
+  sections: z
+    .array(z.enum(EXPORT_SECTIONS))
+    .min(1, "Select at least one section to export"),
+});
+
+settingsRoutes.get("/export/preview", async (c) => {
+  const userId = c.get("userId");
+  const preview = await getExportPreview(userId);
+  return c.json(preview);
+});
+
+settingsRoutes.post("/export", async (c) => {
+  const userId = c.get("userId");
+  const body = exportSchema.parse(await c.req.json());
+  const { buffer, filename } = await buildExportZip(userId, body.sections);
+
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(buffer.length),
+    },
   });
 });

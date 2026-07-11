@@ -14,6 +14,7 @@ import {
   X,
   Gauge,
   ListTodo,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
@@ -29,6 +30,7 @@ const nav = [
   { to: "/do-list", icon: ListTodo, label: "Do-list" },
   { to: "/graph", icon: GitBranch, label: "Graph" },
   { to: "/ai", icon: MessageSquare, label: "AI" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export function Sidebar() {
