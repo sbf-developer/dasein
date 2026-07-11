@@ -231,7 +231,14 @@ export function CalendarPage() {
                 key={key}
                 type="button"
                 onClick={() => selectDay(date)}
-                className={`flex aspect-square flex-col rounded-[var(--radius-sm)] border p-1 text-left transition-colors sm:p-1.5 ${
+                aria-label={
+                  dayEvents.length > 0
+                    ? `${date.toLocaleDateString("en-US", { month: "long", day: "numeric" })}, ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`
+                    : date.toLocaleDateString("en-US", { month: "long", day: "numeric" })
+                }
+                className={`flex aspect-square flex-col rounded-[var(--radius-sm)] border p-1 transition-colors sm:p-1.5 ${
+                  dayEvents.length > 0 ? "items-center sm:items-stretch" : ""
+                } text-left ${
                   isSelected
                     ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
                     : "border-transparent hover:bg-[var(--color-border-subtle)]"
@@ -244,6 +251,21 @@ export function CalendarPage() {
                 >
                   {date.getDate()}
                 </span>
+                {dayEvents.length > 0 && (
+                  <div className="mt-auto flex items-center justify-center gap-0.5 pb-0.5 sm:hidden">
+                    {dayEvents.slice(0, 3).map((e) => (
+                      <span
+                        key={e.id}
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
+                      />
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <span className="text-[8px] font-medium leading-none text-[var(--color-accent)]">
+                        +
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="mt-0.5 hidden min-h-0 flex-1 space-y-0.5 overflow-hidden sm:block">
                   {dayEvents.slice(0, 2).map((e) => (
                     <div
