@@ -6,9 +6,17 @@ import { Input } from "@/components/ui/Input";
 
 export function DoListPage() {
   const [items, setItems] = useState<DoItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
 
-  const load = () => api.doList.list().then(setItems);
+  const load = async () => {
+    try {
+      const list = await api.doList.list();
+      setItems(list);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
     load();
   }, []);
@@ -20,9 +28,13 @@ export function DoListPage() {
     load();
   };
 
-  const toggle = async (item: DoItem) => {
-    await api.doList.update(item.id, { done: !item.done });
-    load();
+  const toggle = async (id: string, done: boolean) => {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, done: !done } : i)));
+    try {
+      await api.doList.update(id, { done: !done });
+    } catch {
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, done } : i)));
+    }
   };
 
   const remove = async (id: string) => {
@@ -57,15 +69,24 @@ export function DoListPage() {
         </Button>
       </div>
 
-      <ItemSection title="To do" items={active} onToggle={toggle} onRemove={remove} />
-      {done.length > 0 && (
-        <ItemSection title="Done" items={done} onToggle={toggle} onRemove={remove} muted />
+      {!loading && (
+        <>
+          <ItemSection title="To do" items={active} onToggle={toggle} onRemove={remove} />
+          {done.length > 0 && (
+            <ItemSection title="Done" items={done} onToggle={toggle} onRemove={remove} muted />
+          )}
+          {items.length === 0 && (
+            <div className="mt-6 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] py-16 text-center">
+              <ListTodo size={32} className="mx-auto text-[var(--color-text-tertiary)]" />
+              <p className="mt-3 text-sm text-[var(--color-text-secondary)]">Nothing on your list yet</p>
+            </div>
+          )}
+        </>
       )}
 
-      {items.length === 0 && (
-        <div className="mt-6 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] py-16 text-center">
-          <ListTodo size={32} className="mx-auto text-[var(--color-text-tertiary)]" />
-          <p className="mt-3 text-sm text-[var(--color-text-secondary)]">Nothing on your list yet</p>
+      {loading && (
+        <div className="mt-6 flex justify-center py-16">
+          <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-[var(--color-border)] border-t-[var(--color-text-tertiary)]" />
         </div>
       )}
     </div>
@@ -81,7 +102,7 @@ function ItemSection({
 }: {
   title: string;
   items: DoItem[];
-  onToggle: (item: DoItem) => void;
+  onToggle: (id: string, done: boolean) => void;
   onRemove: (id: string) => void;
   muted?: boolean;
 }) {
@@ -100,7 +121,7 @@ function ItemSection({
           >
             <button
               type="button"
-              onClick={() => onToggle(item)}
+              onClick={() => onToggle(item.id, item.done)}
               aria-label={item.done ? "Mark as not done" : "Mark as done"}
               className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
                 item.done

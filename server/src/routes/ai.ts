@@ -90,11 +90,11 @@ aiRoutes.post("/chat", async (c) => {
     data: { threadId, role: "USER", content: body.message },
   });
 
-  const [context, history, userSettings] = await Promise.all([
+  const [context, historyRows, userSettings] = await Promise.all([
     fetchUserContext(userId),
     prisma.aiMessage.findMany({
       where: { threadId },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       take: 20,
     }),
     prisma.user.findUnique({
@@ -102,6 +102,8 @@ aiRoutes.post("/chat", async (c) => {
       select: { aiInstructions: true },
     }),
   ]);
+
+  const history = [...historyRows].reverse();
 
   const systemPrompt = buildSystemPrompt(
     context,

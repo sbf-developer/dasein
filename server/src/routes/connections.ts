@@ -85,12 +85,15 @@ connectionRoutes.get("/graph", async (c) => {
     })),
   ];
 
-  const edges = connections.map((c) => ({
-    id: c.id,
-    source: `${c.sourceType}:${c.sourceId}`,
-    target: `${c.targetType}:${c.targetId}`,
-    label: c.label,
-  }));
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const edges = connections
+    .map((c) => ({
+      id: c.id,
+      source: `${c.sourceType}:${c.sourceId}`,
+      target: `${c.targetType}:${c.targetId}`,
+      label: c.label,
+    }))
+    .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
 
   const positions = Object.fromEntries(
     layouts.map((l) => [l.nodeKey, { x: l.x, y: l.y }])

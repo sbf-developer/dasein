@@ -119,6 +119,7 @@ export function KpisPage() {
                   </div>
                   <div className="mt-3 flex items-center gap-2">
                     <Input
+                      key={`${kpi.id}-${kpi.currentValue}`}
                       type="number"
                       defaultValue={kpi.currentValue}
                       className="w-28"

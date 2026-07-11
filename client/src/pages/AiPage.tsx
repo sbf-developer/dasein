@@ -57,6 +57,8 @@ export function AiPage() {
   const [instructionsError, setInstructionsError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const openRequestRef = useRef(0);
+  const sendRequestRef = useRef(0);
+  const instructionsSaveGen = useRef(0);
   const hasAutoOpened = useRef(false);
   const wantsNewChat = useRef(false);
   const instructionsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -84,13 +86,17 @@ export function AiPage() {
     clearTimeout(instructionsSaveTimer.current);
     setSavingInstructions(true);
     instructionsSaveTimer.current = setTimeout(async () => {
+      const gen = ++instructionsSaveGen.current;
+      const valueToSave = instructionsRef.current;
       try {
-        const { instructions } = await api.settings.updateAi(value);
+        const { instructions } = await api.settings.updateAi(valueToSave);
+        if (gen !== instructionsSaveGen.current) return;
         setAiInstructions(instructions);
       } catch (err) {
+        if (gen !== instructionsSaveGen.current) return;
         setInstructionsError(err instanceof Error ? err.message : "Could not save instructions");
       } finally {
-        setSavingInstructions(false);
+        if (gen === instructionsSaveGen.current) setSavingInstructions(false);
       }
     }, 500);
   }, []);
@@ -101,16 +107,20 @@ export function AiPage() {
     persistInstructions(next);
   };
 
-  const loadThreads = useCallback(async (q?: string) => {
-    setLoadingThreads(true);
-    setThreadsError(null);
+  const loadThreads = useCallback(async (q?: string, options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoadingThreads(true);
+      setThreadsError(null);
+    }
     try {
       const list = await api.ai.threads(q);
       setThreads(list);
     } catch (err) {
-      setThreadsError(err instanceof Error ? err.message : "Failed to load chats");
+      if (!options?.silent) {
+        setThreadsError(err instanceof Error ? err.message : "Failed to load chats");
+      }
     } finally {
-      setLoadingThreads(false);
+      if (!options?.silent) setLoadingThreads(false);
     }
   }, []);
 
@@ -141,6 +151,8 @@ export function AiPage() {
   const closeThreads = () => setShowThreads(false);
 
   const startNewChat = () => {
+    sendRequestRef.current += 1;
+    openRequestRef.current += 1;
     wantsNewChat.current = true;
     setThreadId(undefined);
     setMessages([]);
@@ -149,6 +161,7 @@ export function AiPage() {
   };
 
   const openThread = useCallback(async (id: string) => {
+    sendRequestRef.current += 1;
     wantsNewChat.current = false;
     if (id === threadId) {
       if (isNarrow) closeThreads();
@@ -191,13 +204,19 @@ export function AiPage() {
 
   const deleteThread = async (id: string) => {
     if (!confirm("Delete this conversation?")) return;
-    await api.ai.deleteThread(id);
-    if (threadId === id) startNewChat();
-    loadThreads(threadSearch || undefined);
+    try {
+      await api.ai.deleteThread(id);
+      if (threadId === id) startNewChat();
+      loadThreads(threadSearch || undefined, { silent: true });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not delete chat");
+    }
   };
 
   const send = async () => {
     if (!input.trim() || sending) return;
+    const requestId = ++sendRequestRef.current;
+    const threadAtSend = threadId;
     const userMsg = input.trim();
     setInput("");
     setMessages((m) => [
@@ -212,17 +231,19 @@ export function AiPage() {
     setSending(true);
 
     try {
-      const { threadId: tid, userMessage, message } = await api.ai.chat(userMsg, threadId);
+      const { threadId: tid, userMessage, message } = await api.ai.chat(userMsg, threadAtSend);
+      if (requestId !== sendRequestRef.current) return;
       setThreadId(tid);
       setMessages((m) => [
         ...m.filter((x) => !x.id.startsWith("temp-")),
         userMessage,
         message,
       ]);
-      loadThreads(threadSearch || undefined);
+      loadThreads(threadSearch || undefined, { silent: true });
     } catch (err) {
+      if (requestId !== sendRequestRef.current) return;
       setMessages((m) => [
-        ...m,
+        ...m.filter((x) => !x.id.startsWith("temp-")),
         {
           id: `err-${Date.now()}`,
           role: "ASSISTANT",
@@ -231,7 +252,7 @@ export function AiPage() {
         },
       ]);
     } finally {
-      setSending(false);
+      if (requestId === sendRequestRef.current) setSending(false);
     }
   };
 

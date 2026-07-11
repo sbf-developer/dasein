@@ -44,13 +44,18 @@ export function HomePage() {
   const [doItems, setDoItems] = useState<DoItem[]>([]);
   const [notes, setNotes] = useState<Document[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
   const [layout, setLayout] = useState<OverviewLayout>(DEFAULT_LAYOUT);
   const [customizing, setCustomizing] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
   const [layoutError, setLayoutError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const layoutSaveGen = useRef(0);
 
   useEffect(() => {
+    setLoadingOverview(true);
+    setOverviewError(null);
     Promise.all([
       api.goals.list(),
       api.actions.list(),
@@ -58,14 +63,19 @@ export function HomePage() {
       api.doList.list(),
       api.documents.list(),
       api.calendar.list({ upcoming: true }),
-    ]).then(([g, a, k, d, n, e]) => {
-      setGoals(g.filter((x) => x.status === "ACTIVE").slice(0, 5));
-      setActions(a.filter((x) => x.status !== "DONE").slice(0, 5));
-      setKpis(k.slice(0, 5));
-      setDoItems(d.filter((x) => !x.done).slice(0, 5));
-      setNotes(n.slice(0, 5));
-      setEvents(e.slice(0, 5));
-    });
+    ])
+      .then(([g, a, k, d, n, e]) => {
+        setGoals(g.filter((x) => x.status === "ACTIVE").slice(0, 5));
+        setActions(a.filter((x) => x.status !== "DONE").slice(0, 5));
+        setKpis(k.slice(0, 5));
+        setDoItems(d.filter((x) => !x.done).slice(0, 5));
+        setNotes(n.slice(0, 5));
+        setEvents(e.slice(0, 5));
+      })
+      .catch((err) => {
+        setOverviewError(err instanceof Error ? err.message : "Could not load overview");
+      })
+      .finally(() => setLoadingOverview(false));
 
     api.settings
       .getOverview()
@@ -79,13 +89,16 @@ export function HomePage() {
     clearTimeout(saveTimer.current);
     setSavingLayout(true);
     saveTimer.current = setTimeout(async () => {
+      const gen = ++layoutSaveGen.current;
       try {
         const saved = await api.settings.updateOverview(next);
+        if (gen !== layoutSaveGen.current) return;
         setLayout(saved);
       } catch (err) {
+        if (gen !== layoutSaveGen.current) return;
         setLayoutError(err instanceof Error ? err.message : "Could not save layout");
       } finally {
-        setSavingLayout(false);
+        if (gen === layoutSaveGen.current) setSavingLayout(false);
       }
     }, 400);
   }, []);
@@ -182,6 +195,15 @@ export function HomePage() {
         </div>
       )}
 
+      {overviewError && (
+        <p className="mb-4 text-sm text-red-600">{overviewError}</p>
+      )}
+
+      {loadingOverview ? (
+        <div className="flex justify-center py-16">
+          <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-[var(--color-border)] border-t-[var(--color-text-tertiary)]" />
+        </div>
+      ) : (
       <div className="space-y-10">
         {visibleSections.map((section) => {
           if (section.id === "ask-ai") {
@@ -214,6 +236,7 @@ export function HomePage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
