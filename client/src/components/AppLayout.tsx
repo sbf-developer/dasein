@@ -19,7 +19,7 @@ function LayoutShell() {
           <Menu size={20} strokeWidth={1.75} />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold tracking-tight">Episteme</h1>
+          <h1 className="truncate text-base font-semibold tracking-tight">Dasein</h1>
         </div>
       </header>
 

@@ -83,8 +83,7 @@ export function Sidebar() {
       <div className={`flex items-center gap-2 px-3 pt-4 ${collapsed && !isMobile ? "flex-col pb-2" : "pb-3"}`}>
         {(!collapsed || isMobile) && (
           <div className="min-w-0 flex-1 px-1">
-            <h1 className="truncate text-base font-semibold tracking-tight">Episteme</h1>
-            <p className="truncate text-xs text-[var(--color-text-tertiary)]">Personal ontology</p>
+            <h1 className="truncate text-base font-semibold tracking-tight">Dasein</h1>
           </div>
         )}
         {isMobile ? (
