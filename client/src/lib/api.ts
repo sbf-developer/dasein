@@ -183,6 +183,10 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ instructions }),
       }),
+    completeOnboarding: () =>
+      request<{ onboardingCompletedAt: string | null }>("/settings/onboarding/complete", {
+        method: "POST",
+      }),
   },
 };
 
@@ -191,6 +195,7 @@ export type User = {
   email: string;
   name: string | null;
   image: string | null;
+  onboardingCompletedAt: string | null;
 };
 
 export type Document = {

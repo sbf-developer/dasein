@@ -21,7 +21,13 @@ authRoutes.get("/me", async (c) => {
   const user = await getSessionUser(getCookie(c, sessionCookieName()));
   if (!user) return c.json({ user: null });
   return c.json({
-    user: { id: user.id, email: user.email, name: user.name, image: user.image },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+    },
   });
 });
 
@@ -99,7 +105,9 @@ authRoutes.get("/google/callback", async (c) => {
   };
 
   let user = await prisma.user.findUnique({ where: { email: profile.email } });
+  let isNewUser = false;
   if (!user) {
+    isNewUser = true;
     user = await prisma.user.create({
       data: {
         email: profile.email,
@@ -118,7 +126,7 @@ authRoutes.get("/google/callback", async (c) => {
   const { jwt, expiresAt } = await createSession(user.id);
   setCookie(c, sessionCookieName(), jwt, sessionCookieOptions(expiresAt));
 
-  return c.redirect(env.CLIENT_URL);
+  return c.redirect(isNewUser ? `${env.CLIENT_URL}/onboarding` : env.CLIENT_URL);
 });
 authRoutes.post("/logout", async (c) => {
   await destroySession(getCookie(c, sessionCookieName()));

@@ -46,6 +46,8 @@ export function AppLayout() {
 
   if (!user) return <Navigate to="/login" replace />;
 
+  if (!user.onboardingCompletedAt) return <Navigate to="/onboarding" replace />;
+
   return (
     <SidebarProvider>
       <LayoutShell />

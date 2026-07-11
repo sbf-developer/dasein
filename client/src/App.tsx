@@ -14,6 +14,7 @@ import { DocumentsPage } from "@/pages/DocumentsPage";
 import { AiPage } from "@/pages/AiPage";
 import { KpisPage } from "@/pages/KpisPage";
 import { DoListPage } from "@/pages/DoListPage";
+import { OnboardingPage } from "@/pages/OnboardingPage";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/calendar" element={<CalendarPage />} />

@@ -92,3 +92,33 @@ textarea {
   stroke: #888 !important;
   stroke-width: 2px !important;
 }
+
+@keyframes onboarding-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-item {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-onboarding-in {
+  animation: onboarding-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-onboarding-item {
+  animation: onboarding-item 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

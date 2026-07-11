@@ -22,7 +22,9 @@ export function LoginPage() {
     );
   }
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    return <Navigate to={user.onboardingCompletedAt ? "/" : "/onboarding"} replace />;
+  }
 
   return (
     <div className="flex h-full flex-col items-center justify-center bg-[var(--color-surface)] px-6">

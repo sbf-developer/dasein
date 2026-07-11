@@ -61,3 +61,15 @@ settingsRoutes.patch("/overview", async (c) => {
 
   return c.json(layout);
 });
+
+settingsRoutes.post("/onboarding/complete", async (c) => {
+  const userId = c.get("userId");
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { onboardingCompletedAt: new Date() },
+    select: { onboardingCompletedAt: true },
+  });
+  return c.json({
+    onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+  });
+});
