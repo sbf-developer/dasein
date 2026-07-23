@@ -4,10 +4,6 @@ Personal productivity workspace — goals, actions, KPIs, do-list, notes, calend
 
 **Stack:** Vite + React (SPA) · Hono API · PostgreSQL · Prisma · Google OAuth · DeepSeek AI
 
-## Screenshots
-
-
-![Dasein AI chat](docs/screenshots/ai-chat.png)
 
 
 ## Features
